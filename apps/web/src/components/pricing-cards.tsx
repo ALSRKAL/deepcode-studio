@@ -18,13 +18,15 @@ export async function PricingCards({
   signedIn?: boolean;
 }) {
   const t = await getTranslations({ locale: locale as "ar" | "en", namespace: "pricing" });
+  // Highlight the middle public plan (Pro when Starter/Pro/Team are offered).
+  const featured = Math.floor((rows.length - 1) / 2) + (rows.length % 2 === 0 ? 1 : 0);
   return (
     <div className={compact ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-4" : "grid gap-4 sm:grid-cols-2 lg:grid-cols-4"}>
       {rows.map((plan, i) => (
-        <Card key={plan.id} className="p-5 flex flex-col gap-3" accent={i === 2}>
+        <Card key={plan.id} className="p-5 flex flex-col gap-3" accent={i === featured}>
           <div className="flex items-center justify-between">
             <p className="font-semibold">{locale === "ar" ? plan.nameAr : plan.nameEn}</p>
-            {i === 2 ? <Badge tone="primary">{t("recommended")}</Badge> : null}
+            {i === featured ? <Badge tone="primary">{t("recommended")}</Badge> : null}
           </div>
           <p className="flex items-baseline gap-1.5">
             <Num className="text-scale-lg">{formatPrice(plan.priceCents, plan.currency)}</Num>
@@ -54,7 +56,7 @@ export async function PricingCards({
           </ul>
           <ButtonLink
             href={signedIn ? `/${locale}/dashboard/billing` : `/${locale}/sign-up`}
-            variant={i === 2 ? "primary" : "secondary"}
+            variant={i === featured ? "primary" : "secondary"}
             size="sm"
             className="mt-auto w-full"
           >

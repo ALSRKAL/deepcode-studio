@@ -118,7 +118,14 @@ try {
   };
   for (const base of PLACEHOLDER_PLANS) {
     const plan = production
-      ? { ...base, currency: "INR", priceCents: INR_PLACEHOLDER_PRICES[base.id] ?? base.priceCents }
+      ? {
+          ...base,
+          currency: "INR",
+          priceCents: INR_PLACEHOLDER_PRICES[base.id] ?? base.priceCents,
+          // The hosted product sells paid plans only (owner decision 2026-11-16);
+          // the free plan row stays for admin assignment but is never listed.
+          ...(base.id === "free" ? { isPublic: false } : {}),
+        }
       : base;
     const insert = db.insert(plans).values(plan);
     await (production
