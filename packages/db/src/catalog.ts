@@ -26,6 +26,40 @@ export const OPENCODE_GO_PROVIDER = {
   } satisfies Record<UpstreamApiType, string>,
   // The Go usage policy asks clients to send a stable session id in this header.
   sessionHeader: "x-opencode-session",
+  // Public model list (no key needed), OpenCode catalog format (admin "Sync models").
+  catalogFormat: "opencode",
+  modelsUrl: "https://opencode.ai/inference/go/v1/models",
+  hideModelPattern: null as string | null,
+};
+
+/**
+ * Provider presets the admin can enable (seeded disabled). Read 2026-11-15:
+ * https://opencode.ai/docs/zen — Zen free chat models "require OpenCode; use paid
+ * models or Go from other clients", so they are imported hidden.
+ */
+export const OPENCODE_ZEN_PROVIDER = {
+  id: "opencode-zen",
+  displayName: "OpenCode Zen",
+  baseUrls: {
+    "openai-chat-completions": "https://opencode.ai/inference/openai/v1",
+    "openai-responses": "https://opencode.ai/inference/openai/v1",
+    "anthropic-messages": "https://opencode.ai/inference/anthropic/v1",
+    "google-generative-ai": "https://opencode.ai/inference/google/v1beta",
+  } satisfies Record<UpstreamApiType, string>,
+  sessionHeader: "x-opencode-session",
+  catalogFormat: "opencode",
+  modelsUrl: "https://opencode.ai/inference/v1/models",
+  hideModelPattern: "(-free$|^big-pickle$)",
+};
+
+export const OPENROUTER_PROVIDER = {
+  id: "openrouter",
+  displayName: "OpenRouter",
+  baseUrls: { "openai-chat-completions": "https://openrouter.ai/api/v1" } as Partial<Record<UpstreamApiType, string>>,
+  sessionHeader: null as string | null,
+  catalogFormat: "openai",
+  modelsUrl: "https://openrouter.ai/api/v1/models",
+  hideModelPattern: null as string | null,
 };
 
 interface CatalogModel {

@@ -122,7 +122,7 @@ export async function handleProxy(
       .routes(model)
       .filter((r) => r.provider.baseUrls[adapter.apiType] && (!r.provider.isFallback || sub.plan.fallbackEnabled));
     const price = deps.catalog.price(model);
-    if (routes.length === 0 || !price) {
+    if (routes.length === 0 || !price || !deps.catalog.isServable(model)) {
       throw new GatewayHttpError("model_not_allowed", "This model is not currently available.");
     }
     const stream = adapter.isStream(ctx);

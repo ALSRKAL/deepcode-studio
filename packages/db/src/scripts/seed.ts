@@ -17,10 +17,13 @@ import {
 import {
   CATALOG_MODELS,
   OPENCODE_GO_PROVIDER,
+  OPENCODE_ZEN_PROVIDER,
+  OPENROUTER_PROVIDER,
   PLACEHOLDER_PLANS,
   usdPerMTokToCredits,
 } from "../catalog.js";
 import {
+  catalogModels,
   createDatabase,
   modelPrices,
   modelRoutes,
@@ -53,11 +56,28 @@ try {
       set: {
         baseUrls: OPENCODE_GO_PROVIDER.baseUrls,
         sessionHeader: OPENCODE_GO_PROVIDER.sessionHeader,
+        catalogFormat: OPENCODE_GO_PROVIDER.catalogFormat,
+        modelsUrl: OPENCODE_GO_PROVIDER.modelsUrl,
         updatedAt: new Date(),
       },
     });
+  // Presets the admin can enable later (keys + "Sync models" in /admin/providers).
+  for (const preset of [OPENCODE_ZEN_PROVIDER, OPENROUTER_PROVIDER]) {
+    await db.insert(upstreamProviders).values({ ...preset, enabled: false, isFallback: true, priority: 10 }).onConflictDoNothing();
+  }
 
   for (const m of CATALOG_MODELS) {
+    // Minimal catalog facts so the gateway/admin work offline; "Sync models" fills the rest.
+    await db
+      .insert(catalogModels)
+      .values({
+        id: m.id,
+        displayName: m.id,
+        isFree: m.free === true,
+        trainsOnData: m.trainsOnPrompts === true,
+        sourceProviderId: OPENCODE_GO_PROVIDER.id,
+      })
+      .onConflictDoNothing();
     await db
       .insert(modelRoutes)
       .values({ model: m.id, providerId: OPENCODE_GO_PROVIDER.id, apiType: m.apiType, upstreamModel: m.id })

@@ -28,3 +28,4 @@ apps/web/.next/
 apps/web/test-results/
 apps/web/playwright-report/
 infra/render/secrets.env
+.claude/

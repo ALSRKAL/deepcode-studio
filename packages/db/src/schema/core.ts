@@ -211,6 +211,16 @@ export const upstreamProviders = pgTable("upstream_providers", {
   baseUrls: jsonb("base_urls").$type<Partial<Record<UpstreamApiType, string>>>().notNull(),
   /** Optional header carrying a stable per-subscriber session id (OpenCode asks for x-opencode-session). */
   sessionHeader: text("session_header"),
+  /**
+   * How models are discovered (admin "Sync models"): `opencode` reads OpenCode's
+   * rich catalog format, `openai` reads a plain OpenAI/OpenRouter-style /models list,
+   * `manual` never syncs. `modelsUrl` is the list endpoint (public or key-authenticated).
+   */
+  catalogFormat: text("catalog_format").notNull().default("manual"),
+  modelsUrl: text("models_url"),
+  /** Model ids matching this regex are imported hidden (e.g. Zen free models: OpenCode-client only). */
+  hideModelPattern: text("hide_model_pattern"),
+  lastSyncedAt: ts("last_synced_at"),
   enabled: boolean("enabled").notNull().default(true),
   isFallback: boolean("is_fallback").notNull().default(false),
   priority: integer("priority").notNull().default(0),
@@ -250,6 +260,61 @@ export const upstreamPoolKeys = pgTable(
     check("upstream_pool_keys_weight_ck", sql`${t.weight} > 0`),
     check("upstream_pool_keys_concurrency_ck", sql`${t.maxConcurrency} > 0`),
   ],
+);
+
+/**
+ * Model catalog (owner request 2026-11-15): what DeepCode offers, with the facts
+ * shown to users and admins. Routing stays in model_routes, our credit prices in
+ * model_prices, and which plan sees which model in plans.allowed_models.
+ * `status`: active = may be offered; hidden = admin/sync hid it; retired = the
+ * upstream no longer lists it (kept for history, never served).
+ */
+export const catalogModelStatus = pgEnum("catalog_model_status", ["active", "hidden", "retired"]);
+
+export interface CatalogModelCapabilities {
+  tools?: boolean;
+  reasoning?: boolean;
+  vision?: boolean;
+  structuredOutput?: boolean;
+}
+
+/** Upstream list price, USD per million tokens (informational: what the model costs us). */
+export interface UpstreamCostUsd {
+  input: number;
+  output: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+  /** Price changes with context size or time windows (see the upstream catalog). */
+  variable?: boolean;
+}
+
+export const catalogModels = pgTable(
+  "catalog_models",
+  {
+    id: text("id").primaryKey(),
+    displayName: text("display_name").notNull(),
+    description: text("description"),
+    family: text("family"),
+    contextWindow: integer("context_window"),
+    maxOutputTokens: integer("max_output_tokens"),
+    inputModalities: text("input_modalities").array().notNull().default(sql`'{}'::text[]`),
+    capabilities: jsonb("capabilities").$type<CatalogModelCapabilities>().notNull().default({}),
+    upstreamCostUsd: jsonb("upstream_cost_usd").$type<UpstreamCostUsd>(),
+    isFree: boolean("is_free").notNull().default(false),
+    /** Upstream may train on or retain prompts (contributor / free-trial models). */
+    trainsOnData: boolean("trains_on_data").notNull().default(false),
+    status: catalogModelStatus("status").notNull().default("active"),
+    /** Why a model is hidden or restricted, shown to admins. */
+    note: text("note"),
+    /** Optional label shown to users: new | recommended | beta. */
+    badge: text("badge"),
+    sortOrder: integer("sort_order").notNull().default(100),
+    sourceProviderId: text("source_provider_id").references(() => upstreamProviders.id),
+    lastSeenAt: ts("last_seen_at"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("catalog_models_status_idx").on(t.status, t.sortOrder)],
 );
 
 export const modelRoutes = pgTable(

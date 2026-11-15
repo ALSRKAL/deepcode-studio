@@ -170,9 +170,30 @@ function buildApp(deps: Gateway["deps"], metrics: Metrics, logger: Logger): Hono
       const allowed = snapshot.subscription?.plan.allowedModels ?? [];
       return c.json({
         object: "list",
+        // OpenAI list shape plus DeepCode fields (ignored by plain OpenAI clients):
+        // name, description, limits, capabilities, the native API, free flag, badge.
         data: allowed
           .filter((m) => deps.catalog.isServable(m))
-          .map((id) => ({ id, object: "model", created: 0, owned_by: "deepcode" })),
+          .map((id) => {
+            const info = deps.catalog.info(id);
+            return {
+              id,
+              object: "model",
+              created: 0,
+              owned_by: "deepcode",
+              name: info?.name ?? id,
+              description: info?.description ?? null,
+              context_window: info?.contextWindow ?? null,
+              max_output_tokens: info?.maxOutputTokens ?? null,
+              input_modalities: info?.inputModalities ?? [],
+              capabilities: info?.capabilities ?? {},
+              api_type: deps.catalog.routes(id)[0]?.apiType ?? null,
+              free: info?.free ?? false,
+              badge: info?.badge ?? null,
+              sort_order: info?.sortOrder ?? 100,
+            };
+          })
+          .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)),
       });
     } catch (err) {
       return toErrorResponse(err, requestId, logger);

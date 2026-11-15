@@ -17,11 +17,12 @@ export default async function AdminLayout({
   const t = await getTranslations("admin");
   const items = [
     { href: "/admin", label: t("overview") },
+    { href: "/admin/providers", label: t("providers") },
     { href: "/admin/pool", label: t("pool") },
+    { href: "/admin/models", label: t("models") },
     { href: "/admin/users", label: t("users") },
     { href: "/admin/payments", label: t("payments") },
     { href: "/admin/plans", label: t("plans") },
-    { href: "/admin/models", label: t("models") },
     { href: "/admin/marketplace", label: t("marketplace") },
     { href: "/admin/releases", label: t("releases") },
     { href: "/admin/audit", label: t("audit") },

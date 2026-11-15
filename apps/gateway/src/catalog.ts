@@ -1,6 +1,6 @@
 import { and, desc, eq, lte } from "drizzle-orm";
 import type { ModelPrice, UpstreamApiType } from "@deepcode/shared";
-import { modelPrices, modelRoutes, upstreamProviders, type Database } from "@deepcode/db";
+import { catalogModels, modelPrices, modelRoutes, upstreamProviders, type Database } from "@deepcode/db";
 
 export interface ProviderInfo {
   id: string;
@@ -8,6 +8,21 @@ export interface ProviderInfo {
   sessionHeader: string | null;
   isFallback: boolean;
   priority: number;
+}
+
+/** What clients are told about a model (GET /v1/models, the desktop model picker). */
+export interface ModelInfo {
+  id: string;
+  name: string;
+  description: string | null;
+  contextWindow: number | null;
+  maxOutputTokens: number | null;
+  inputModalities: string[];
+  capabilities: { tools?: boolean; reasoning?: boolean; vision?: boolean; structuredOutput?: boolean };
+  free: boolean;
+  badge: string | null;
+  sortOrder: number;
+  status: "active" | "hidden" | "retired";
 }
 
 export interface Route {
@@ -26,6 +41,7 @@ export class Catalog {
   #routes = new Map<string, Route[]>();
   #prices = new Map<string, ModelPrice>();
   #providers = new Map<string, ProviderInfo>();
+  #models = new Map<string, ModelInfo>();
 
   constructor(private readonly db: Database) {}
 
@@ -74,9 +90,30 @@ export class Catalog {
       }
     }
 
+    const modelRows = await this.db.select().from(catalogModels);
+    const modelMap = new Map<string, ModelInfo>(
+      modelRows.map((m) => [
+        m.id,
+        {
+          id: m.id,
+          name: m.displayName,
+          description: m.description,
+          contextWindow: m.contextWindow,
+          maxOutputTokens: m.maxOutputTokens,
+          inputModalities: m.inputModalities,
+          capabilities: m.capabilities,
+          free: m.isFree,
+          badge: m.badge,
+          sortOrder: m.sortOrder,
+          status: m.status,
+        },
+      ]),
+    );
+
     this.#providers = providerMap;
     this.#routes = routeMap;
     this.#prices = priceMap;
+    this.#models = modelMap;
   }
 
   routes(model: string): Route[] {
@@ -87,9 +124,18 @@ export class Catalog {
     return this.#prices.get(model);
   }
 
-  /** Models that have at least one enabled route and a price. */
+  /**
+   * Models that have at least one enabled route and a price, and that the admin
+   * has not hidden or the upstream retired (catalog_models.status). Models with no
+   * catalog row (older installs) stay servable.
+   */
   isServable(model: string): boolean {
-    return this.routes(model).length > 0 && this.#prices.has(model);
+    const info = this.#models.get(model);
+    return this.routes(model).length > 0 && this.#prices.has(model) && (!info || info.status === "active");
+  }
+
+  info(model: string): ModelInfo | undefined {
+    return this.#models.get(model);
   }
 
   provider(id: string): ProviderInfo | undefined {

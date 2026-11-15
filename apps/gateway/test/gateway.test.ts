@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GatewayErrorSchema, SubscriptionStatusResponseSchema, USAGE_HEADERS, uuidv7 } from "@deepcode/shared";
-import { upstreamPoolKeys, usageDaily, usageLogs, users, virtualApiKeys } from "@deepcode/db";
+import { catalogModels, upstreamPoolKeys, usageDaily, usageLogs, users, virtualApiKeys } from "@deepcode/db";
 import { settleBatch, type SettlementRecord } from "../src/metering.js";
 import {
   balance,
@@ -516,6 +516,32 @@ describe("subscription status and cache invalidation", () => {
     const res = await h.gw.app.request("/v1/models", { headers: { authorization: `Bearer ${t.apiKey}`, "x-forwarded-for": t.ip } });
     const body = (await res.json()) as { data: Array<{ id: string }> };
     expect(body.data.map((m) => m.id).sort()).toEqual([...t.models].sort());
+  });
+
+  it("returns catalog details, and a model the admin hides disappears and is refused", async () => {
+    const t = await createTenant(h);
+    const [shown, hidden] = t.models;
+    await h.gw.deps.db.insert(catalogModels).values([
+      { id: shown, displayName: "Shown Model", contextWindow: 200_000, isFree: true, capabilities: { tools: true }, badge: "new", sortOrder: 1 },
+      { id: hidden, displayName: "Hidden Model", status: "hidden" },
+    ]);
+    await h.gw.deps.catalog.reload(new Date());
+
+    const res = await h.gw.app.request("/v1/models", { headers: { authorization: `Bearer ${t.apiKey}`, "x-forwarded-for": t.ip } });
+    const body = (await res.json()) as { data: Array<Record<string, unknown>> };
+    expect(body.data.map((m) => m.id)).toEqual([shown]);
+    expect(body.data[0]).toMatchObject({
+      name: "Shown Model",
+      context_window: 200_000,
+      free: true,
+      capabilities: { tools: true },
+      api_type: "openai-chat-completions",
+      badge: "new",
+    });
+
+    const refused = await errorOf(await call(h, t, "chat", { model: hidden }));
+    expect(refused).toMatchObject({ status: 403, code: "model_not_allowed" });
+    expect((await call(h, t, "chat", { model: shown, stream: false })).status).toBe(200);
   });
 });
 
