@@ -2,16 +2,20 @@ import { getTranslations } from "next-intl/server";
 import { plans } from "@deepcode/db";
 import { Card, Badge, Num } from "@/components/ui/primitives";
 import { formatPrice } from "@/lib/money";
+import { ButtonLink } from "@/components/ui/button";
 
 /** Shared plan cards (docs/plan/03 §3.1): one source — the plans table. */
 export async function PricingCards({
   plans: rows,
   locale,
   compact = false,
+  signedIn = false,
 }: {
   plans: Array<typeof plans.$inferSelect>;
   locale: string;
   compact?: boolean;
+  /** Signed-in visitors pick a plan in billing; others start at sign-up. */
+  signedIn?: boolean;
 }) {
   const t = await getTranslations({ locale: locale as "ar" | "en", namespace: "pricing" });
   return (
@@ -20,7 +24,7 @@ export async function PricingCards({
         <Card key={plan.id} className="p-5 flex flex-col gap-3" accent={i === 2}>
           <div className="flex items-center justify-between">
             <p className="font-semibold">{locale === "ar" ? plan.nameAr : plan.nameEn}</p>
-            {i === 2 ? <Badge tone="primary">{t("placeholder")}</Badge> : <Badge>{t("placeholder")}</Badge>}
+            {i === 2 ? <Badge tone="primary">{t("recommended")}</Badge> : null}
           </div>
           <p className="flex items-baseline gap-1.5">
             <Num className="text-scale-lg">{formatPrice(plan.priceCents, plan.currency)}</Num>
@@ -48,6 +52,14 @@ export async function PricingCards({
               <span>{t("models")}</span>
             </li>
           </ul>
+          <ButtonLink
+            href={signedIn ? `/${locale}/dashboard/billing` : `/${locale}/sign-up`}
+            variant={i === 2 ? "primary" : "secondary"}
+            size="sm"
+            className="mt-auto w-full"
+          >
+            {plan.priceCents === 0 ? t("startFree") : t("choose")}
+          </ButtonLink>
         </Card>
       ))}
     </div>

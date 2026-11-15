@@ -2,12 +2,8 @@ import { getTranslations } from "next-intl/server";
 import { currentUser } from "@/lib/guards";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { Card } from "@/components/ui/primitives";
 
-/**
- * Legal pages (docs/plan/04 Phase 2b): clearly-marked placeholder text for the
- * owner. Never presented as final terms (docs/plan PROMPT §4 Step B).
- */
+/** Legal pages: terms, privacy and acceptable use (sections from i18n), plus licences. */
 const SLUGS = ["terms", "privacy", "acceptable-use", "licenses"] as const;
 type Slug = (typeof SLUGS)[number];
 
@@ -38,13 +34,25 @@ export default async function LegalPage({
       <SiteHeader signedIn={user !== null} />
       <main className="mx-auto max-w-3xl px-4 py-16 grid gap-6">
         <h1 className="text-scale-lg font-semibold">{title}</h1>
-        <Card className="border-warning/40 p-5">
-          <p className="font-medium text-warning">{t("placeholderTitle")}</p>
-          <p className="mt-1 text-[14px] leading-7 text-fg-muted">{t("placeholderBody")}</p>
-        </Card>
-        <div className="rounded-lg border border-border bg-surface p-6 text-[14px] leading-7 text-fg-muted">
-          {slug === "licenses" ? <p>{t("licensesBody")}</p> : <p>{t("placeholderBody")}</p>}
-        </div>
+        {slug === "licenses" ? (
+          <div className="rounded-lg border border-border bg-surface p-6 text-[14px] leading-7 text-fg-muted">
+            <p>{t("licensesBody")}</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-[13px] text-fg-subtle">{t("updated")}</p>
+            <div className="grid gap-6 rounded-lg border border-border bg-surface p-6">
+              {(t.raw(`docs.${titleKey}`) as Array<{ h: string; p: string }>).map((section, i) => (
+                <section key={section.h} aria-labelledby={`legal-${i}`} className="grid gap-2">
+                  <h2 id={`legal-${i}`} className="text-[15px] font-semibold text-fg">
+                    {i + 1}. {section.h}
+                  </h2>
+                  <p className="text-[14px] leading-7 text-fg-muted">{section.p}</p>
+                </section>
+              ))}
+            </div>
+          </>
+        )}
       </main>
       <SiteFooter />
     </>

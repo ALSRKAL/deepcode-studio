@@ -63,7 +63,7 @@
   },
   "pricing": {
     "title": "Simple plans, transparent metering",
-    "sub": "You pay for actual usage in credits. Prices are development placeholders — the owner sets them before launch.",
+    "sub": "Pay for what you actually use: every plan gives you monthly credits, charged by model price and tokens, with no automatic charge when they run out.",
     "monthly": "Monthly",
     "credits": "credits",
     "creditsPerPeriod": "credits per period",
@@ -71,15 +71,15 @@
     "devices": "devices",
     "concurrency": "concurrent requests",
     "models": "models",
-    "placeholder": "placeholder",
-    "perMonth": "USD / month",
-    "perYear": "USD / year",
+    "perMonth": "/ month",
+    "perYear": "/ year",
     "choose": "Choose plan",
     "current": "Your current plan",
     "recommended": "Recommended",
     "transparencyTitle": "How credits are calculated",
     "transparencyBody": "credit = model list price × tokens, per million. When credits run out, requests stop and nothing is auto-charged.",
-    "perModelPrices": "Model price table"
+    "perModelPrices": "Model price table",
+    "startFree": "Start free"
   },
   "download": {
     "title": "Download DeepCode Studio",
@@ -272,7 +272,6 @@
     "marketplace": "Marketplace",
     "releases": "Releases",
     "audit": "Audit log",
-    "placeholderPrices": "Prices are development placeholders — see packages/db/src/catalog.ts.",
     "poolSummary": "Status: {healthy} healthy, {cooling} cooling, {failed} failed. Utilisation: {utilization}%.",
     "addKey": "Add key",
     "keyLabel": "Label",
@@ -350,13 +349,104 @@
     "cancel": "Cancel"
   },
   "legal": {
-    "placeholderTitle": "Draft for review",
-    "placeholderBody": "This is clearly-marked placeholder text — the owner or a legal advisor must supply the final wording before launch. This page is not a final document.",
     "terms": "Terms of service",
     "privacy": "Privacy policy",
     "acceptableUse": "Acceptable use policy",
     "licenses": "Open-source licenses",
-    "licensesBody": "DeepCode Studio is built on ZCodium (Apache-2.0). We keep LICENSE and NOTICE.md unchanged and document our changes in a \"DeepCode Studio modifications\" section."
+    "licensesBody": "DeepCode Studio is built on ZCodium (Apache-2.0). We keep LICENSE and NOTICE.md unchanged and document our changes in a \"DeepCode Studio modifications\" section.",
+    "updated": "Last updated: 16 November 2026",
+    "docs": {
+      "terms": [
+        {
+          "h": "The service",
+          "p": "DeepCode Studio is an AI coding environment made of a desktop app, a web portal, and a gateway that forwards your requests to model providers. By using the service you agree to these terms."
+        },
+        {
+          "h": "Your account",
+          "p": "You need an account with an email address or a Google account. You are responsible for keeping your account, API keys and linked devices secure, and for all use made through them. Tell us immediately if you suspect unauthorised use."
+        },
+        {
+          "h": "Plans and credits",
+          "p": "Each plan gives you credits for the subscription period, charged by model price and token count. When credits run out, requests stop until renewal or upgrade; there is never an automatic charge. Unused credits do not roll over and cannot be exchanged for cash."
+        },
+        {
+          "h": "Payment",
+          "p": "Payment is prepaid via UPI. A plan is activated after we confirm the amount and transaction reference (UTR) were received. If we cannot activate a plan you paid for, we refund it in full; other refund requests are reviewed case by case."
+        },
+        {
+          "h": "Models and providers",
+          "p": "Models are provided by third parties and may change, be withdrawn or change price. Model output can be wrong; review any code or content before using it. Some free models may let their provider train on conversations; this is marked next to the model."
+        },
+        {
+          "h": "Acceptable use",
+          "p": "Your use is subject to the Acceptable Use Policy. We may suspend or terminate any account that breaches it or puts the service or others at risk."
+        },
+        {
+          "h": "Availability and liability",
+          "p": "The service is provided “as is”. We work to keep it running but do not guarantee it will be uninterrupted. To the extent the law allows, our liability is limited to the amount you paid us in the three months before the claim."
+        },
+        {
+          "h": "Termination",
+          "p": "You can delete your account at any time from Settings. We may end the service for any account that breaches these terms."
+        },
+        {
+          "h": "Changes and contact",
+          "p": "We may update these terms and show the date at the top of this page; continuing to use the service means you accept the updated version. To contact us, write to the address DeepCode Studio emails come from."
+        }
+      ],
+      "privacy": [
+        {
+          "h": "What we collect",
+          "p": "Account data: name, email address and a hashed password (or your Google account ID). Linked devices: name, operating system, app version and last seen time. Usage data: model used, token counts, cost, status and timing. Payment data: amount, transaction reference (UTR) and status."
+        },
+        {
+          "h": "What we do not store",
+          "p": "We do not store the content of your messages or the code you send to models. It passes through the gateway to the model provider only to complete the request. We never see your card or bank account details."
+        },
+        {
+          "h": "How we use it",
+          "p": "To run your account, meter credits and activate plans; to protect the service from abuse (rate limits and duplicate-payment checks); and to send verification and password-reset emails."
+        },
+        {
+          "h": "Who processes it with us",
+          "p": "Render (hosting), Neon (database) and Redis Cloud (cache) in Singapore; Brevo (email); Google (sign-in, if you choose it); Firebase (admin notifications); and model providers such as OpenCode and OpenRouter (request content only, to complete it). We do not sell your data."
+        },
+        {
+          "h": "Retention and deletion",
+          "p": "We keep account data while the account exists. When you delete your account from Settings its personal data is deleted; we may keep financial records and de-identified usage records as required by law or to prevent fraud."
+        },
+        {
+          "h": "Cookies",
+          "p": "We use strictly necessary cookies only: your sign-in session, language choice, and two-factor protection. No advertising or third-party tracking cookies."
+        },
+        {
+          "h": "Your rights",
+          "p": "You can view your data, change your name and language, and delete your account in Settings. For any other request, write to the address our emails come from."
+        }
+      ],
+      "acceptableUse": [
+        {
+          "h": "Not allowed",
+          "p": "Using the service for anything illegal; to create malware or intrusion tools aimed at systems you are not authorised to test; for fraud or phishing; for content that exploits minors; or for harassment and threats."
+        },
+        {
+          "h": "Abusing the service",
+          "p": "Selling, sharing or reselling API keys or model access; circumventing rate, credit or device limits; creating multiple accounts to obtain free credits; or trying to access other users' data or parts of the service not available to you."
+        },
+        {
+          "h": "Load",
+          "p": "Flooding the service with excessive automated requests or using it in a way that affects its stability for others."
+        },
+        {
+          "h": "Provider policies",
+          "p": "Your use must also comply with the policies of the model providers your requests are sent to."
+        },
+        {
+          "h": "Enforcement",
+          "p": "On a breach we may warn, suspend or terminate the account and revoke its keys. You can write to us to appeal any action."
+        }
+      ]
+    }
   },
   "common": {
     "loading": "Loading…",

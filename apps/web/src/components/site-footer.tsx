@@ -1,9 +1,12 @@
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { BrandMark, BrandWordmark } from "./brand";
 import { ButtonLink } from "./ui/button";
 
 export async function SiteFooter() {
   const t = await getTranslations("footer");
+  const locale = await getLocale();
+  // Locale-prefixed hrefs: no extra redirect through the middleware per click.
+  const L = (path: string) => `/${locale}${path === "/" ? "" : path}`;
   const n = await getTranslations("nav");
   const year = new Date().getFullYear();
   return (
@@ -15,28 +18,28 @@ export async function SiteFooter() {
         </div>
         <nav aria-label={n("product")} className="grid gap-2 text-fg-muted">
           <p className="text-fg font-medium">{n("product")}</p>
-          <ButtonLink href="/download" variant="ghost" size="sm" className="!px-0 justify-start">
+          <ButtonLink href={L("/download")} variant="ghost" size="sm" className="!px-0 justify-start">
             {n("download")}
           </ButtonLink>
-          <ButtonLink href="/pricing" variant="ghost" size="sm" className="!px-0 justify-start">
+          <ButtonLink href={L("/pricing")} variant="ghost" size="sm" className="!px-0 justify-start">
             {n("pricing")}
           </ButtonLink>
-          <ButtonLink href="/changelog" variant="ghost" size="sm" className="!px-0 justify-start">
+          <ButtonLink href={L("/changelog")} variant="ghost" size="sm" className="!px-0 justify-start">
             {n("changelog")}
           </ButtonLink>
         </nav>
         <nav aria-label={t("legal")} className="grid gap-2 text-fg-muted">
           <p className="text-fg font-medium">{t("legal")}</p>
-          <ButtonLink href="/legal/terms" variant="ghost" size="sm" className="!px-0 justify-start">
+          <ButtonLink href={L("/legal/terms")} variant="ghost" size="sm" className="!px-0 justify-start">
             {t("terms")}
           </ButtonLink>
-          <ButtonLink href="/legal/privacy" variant="ghost" size="sm" className="!px-0 justify-start">
+          <ButtonLink href={L("/legal/privacy")} variant="ghost" size="sm" className="!px-0 justify-start">
             {t("privacy")}
           </ButtonLink>
-          <ButtonLink href="/legal/acceptable-use" variant="ghost" size="sm" className="!px-0 justify-start">
+          <ButtonLink href={L("/legal/acceptable-use")} variant="ghost" size="sm" className="!px-0 justify-start">
             {t("acceptableUse")}
           </ButtonLink>
-          <ButtonLink href="/legal/licenses" variant="ghost" size="sm" className="!px-0 justify-start">
+          <ButtonLink href={L("/legal/licenses")} variant="ghost" size="sm" className="!px-0 justify-start">
             {t("licenses")}
           </ButtonLink>
         </nav>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { ButtonLink } from "@/components/ui/button";
 import { BrandMark, BrandWordmark } from "@/components/brand";
@@ -7,6 +7,9 @@ import { BrandMark, BrandWordmark } from "@/components/brand";
 /** Site header — the 1px cyan rule is the active-state indicator (§1.6 signature). */
 export async function SiteHeader({ signedIn }: { signedIn: boolean }) {
   const t = await getTranslations("nav");
+  const locale = await getLocale();
+  // Locale-prefixed hrefs: no extra redirect through the middleware per click.
+  const L = (path: string) => `/${locale}${path === "/" ? "" : path}`;
   const links = [
     { href: "/pricing", label: t("pricing") },
     { href: "/download", label: t("download") },
@@ -16,7 +19,7 @@ export async function SiteHeader({ signedIn }: { signedIn: boolean }) {
   return (
     <header className="border-b border-border bg-bg/95 sticky top-0 z-40">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4">
-        <Link href="/" className="flex items-center gap-2" aria-label="DeepCode Studio">
+        <Link href={L("/")} className="flex items-center gap-2" aria-label="DeepCode Studio">
           <BrandMark size={22} />
           <BrandWordmark className="hidden whitespace-nowrap text-[15px] font-semibold tracking-[-0.01em] sm:inline" />
         </Link>
@@ -24,7 +27,7 @@ export async function SiteHeader({ signedIn }: { signedIn: boolean }) {
           {links.map((l) => (
             <Link
               key={l.href}
-              href={l.href}
+              href={L(l.href)}
               className="relative px-3 py-2 text-[14px] text-fg-muted hover:text-fg transition-colors duration-200 ease-out"
             >
               {l.label}
@@ -34,15 +37,15 @@ export async function SiteHeader({ signedIn }: { signedIn: boolean }) {
         <div className="ms-auto flex items-center gap-2">
           <LocaleSwitcher />
           {signedIn ? (
-            <ButtonLink href="/dashboard" variant="secondary" size="sm">
+            <ButtonLink href={L("/dashboard")} variant="secondary" size="sm">
               {t("dashboard")}
             </ButtonLink>
           ) : (
             <>
-              <ButtonLink href="/sign-in" variant="ghost" size="sm" className="max-sm:hidden whitespace-nowrap">
+              <ButtonLink href={L("/sign-in")} variant="ghost" size="sm" className="max-sm:hidden whitespace-nowrap">
                 {t("signIn")}
               </ButtonLink>
-              <ButtonLink href="/sign-up" variant="primary" size="sm" className="whitespace-nowrap">
+              <ButtonLink href={L("/sign-up")} variant="primary" size="sm" className="whitespace-nowrap">
                 {t("signUp")}
               </ButtonLink>
             </>

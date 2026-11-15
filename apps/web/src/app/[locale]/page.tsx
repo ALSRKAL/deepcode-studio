@@ -137,7 +137,7 @@ description: Extract tables from PDFs
         {/* 7 — Pricing */}
         <section className="mx-auto max-w-6xl px-4 py-16">
           <SectionTitle>{t("ctaPricing")}</SectionTitle>
-          <PricingCards plans={publicPlans} locale={locale} compact />
+          <PricingCards plans={publicPlans} locale={locale} compact signedIn={user !== null} />
         </section>
 
         {/* 9 — FAQ */}

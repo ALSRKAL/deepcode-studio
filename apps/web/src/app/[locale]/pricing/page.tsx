@@ -25,7 +25,7 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
         <SectionTitle as="h1" sub={t("sub")}>
           {t("title")}
         </SectionTitle>
-        <PricingCards plans={publicPlans} locale={locale} />
+        <PricingCards plans={publicPlans} locale={locale} signedIn={user !== null} />
         <Card className="mt-10 p-6 max-w-3xl">
           <p className="font-medium">{t("transparencyTitle")}</p>
           <p className="mt-2 text-[14px] leading-7 text-fg-muted">{t("transparencyBody")}</p>
