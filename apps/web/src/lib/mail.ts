@@ -10,7 +10,16 @@ import { env } from "./env";
  * (checked at send time, not import time, so `next build` does not need SMTP),
  * and the dev fallback logs only recipient + subject — never the token URL.
  */
-const transport = env.SMTP_URL ? nodemailer.createTransport(env.SMTP_URL) : null;
+// Short timeouts: nodemailer's 2-minute default left sign-up spinning when the host
+// blocked the SMTP port (Render free blocks 25/465/587; Brevo also listens on 2525).
+const transport = env.SMTP_URL
+  ? nodemailer.createTransport({
+      url: env.SMTP_URL,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
+    })
+  : null;
 
 type MailKey = "verifyEmail" | "resetPassword";
 
