@@ -4,6 +4,9 @@
 	# The platform terminates TLS in front of us.
 	servers {
 		protocols h1 h2c
+		# Render's load balancer (private range) sets X-Forwarded-Proto: https;
+		# trust it so the apps behind us see the public scheme, not http.
+		trusted_proxies static private_ranges
 	}
 }
 

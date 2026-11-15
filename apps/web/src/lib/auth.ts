@@ -118,8 +118,6 @@ export const auth = betterAuth({
       : {}),
   },
   plugins: [
-    // nextCookies lets server actions set session cookies through next/headers.
-    nextCookies(),
     twoFactor({
       issuer: "DeepCode Studio",
       backupCodes: { amount: 5 },
@@ -127,6 +125,10 @@ export const auth = betterAuth({
       // every account that has one (shouldRequirePassword).
       allowPasswordless: true,
     }),
+    // nextCookies lets server actions set session cookies through next/headers.
+    // It must be LAST: cookies set by later plugins' after-hooks (the 2FA
+    // challenge cookie) are otherwise never forwarded to the browser.
+    nextCookies(),
   ],
 });
 

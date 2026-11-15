@@ -55,6 +55,25 @@ function withSecurityHeaders(request: NextRequest, locale: Locale): NextResponse
   return response;
 }
 
+/**
+ * Same-origin redirect on the public origin. Behind the container proxy the
+ * request URL is the internal `http://localhost:3000`, so a redirect built from
+ * nextUrl sent visitors to localhost. The proxy passes the public host and scheme
+ * (Host / X-Forwarded-Host / X-Forwarded-Proto); Next rejects relative Locations.
+ */
+function publicOrigin(request: NextRequest): string {
+  const first = (v: string | null) => v?.split(",")[0]?.trim() || null;
+  const proto = first(request.headers.get("x-forwarded-proto")) ?? request.nextUrl.protocol.replace(":", "");
+  const host = first(request.headers.get("x-forwarded-host")) ?? request.headers.get("host") ?? request.nextUrl.host;
+  const safeProto = proto === "https" || proto === "http" ? proto : "https";
+  const safeHost = /^[a-z0-9.-]+(:\d{1,5})?$/i.test(host) ? host : request.nextUrl.host;
+  return `${safeProto}://${safeHost}`;
+}
+
+function redirectTo(request: NextRequest, url: URL): NextResponse {
+  return NextResponse.redirect(new URL(`${url.pathname}${url.search}`, publicOrigin(request)), 307);
+}
+
 export default function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
   const seg = pathname.split("/")[1];
@@ -66,7 +85,7 @@ export default function middleware(request: NextRequest): NextResponse {
       const url = request.nextUrl.clone();
       url.searchParams.delete("locale");
       url.pathname = `/${wanted}${pathname.slice(seg.length + 1)}`;
-      const redirect = NextResponse.redirect(url);
+      const redirect = redirectTo(request, url);
       redirect.cookies.set(LOCALE_COOKIE, wanted, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
       return redirect;
     }
@@ -75,7 +94,7 @@ export default function middleware(request: NextRequest): NextResponse {
   // Root or a prefix-less path: negotiate once, redirect permanently.
   const url = request.nextUrl.clone();
   url.pathname = `/${negotiate(request)}${pathname === "/" ? "" : pathname}`;
-  const redirect = NextResponse.redirect(url);
+  const redirect = redirectTo(request, url);
   redirect.cookies.set(LOCALE_COOKIE, url.pathname.startsWith("/ar") ? "ar" : "en", {
     path: "/",
     maxAge: 60 * 60 * 24 * 365,
