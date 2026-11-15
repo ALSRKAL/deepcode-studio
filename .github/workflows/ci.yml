@@ -85,7 +85,7 @@ jobs:
       - run: pnpm build
       - run: pnpm db:migrate
       - run: pnpm db:seed > /dev/null
-      - run: pnpm --filter @deepcode/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @deepcode/web exec playwright install --with-deps chromium webkit
       - name: Start the web server
         working-directory: apps/web
         run: |
