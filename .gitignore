@@ -1,0 +1,30 @@
+node_modules/
+dist/
+coverage/
+.turbo/
+*.log
+*.tsbuildinfo
+
+# secrets
+.env
+.env.*
+!.env.example
+infra/gateway.env
+infra/web.env
+
+# The ZCodium fork keeps its own .git until it is converted to a subtree in
+# Phase 3 (docs/plan/00-MASTER-ARCHITECTURE.md §2). Ignored here so the root
+# repo never records it as an embedded gitlink by accident.
+apps/desktop/
+
+# local agent tooling state
+.mimosa/
+
+# Next.js build output (never commit build artifacts)
+apps/web/.next/
+
+# Playwright run artifacts (failure traces/screenshots are local-only; the
+# review screenshots under apps/web/e2e/screenshots are committed separately)
+apps/web/test-results/
+apps/web/playwright-report/
+infra/render/secrets.env

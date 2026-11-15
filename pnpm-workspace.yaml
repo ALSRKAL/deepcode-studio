@@ -1,0 +1,7 @@
+# apps/desktop is deliberately NOT a member: it is the ZCodium fork with its own
+# pnpm workspace and lockfile, kept separate so upstream merges stay tractable.
+# See docs/plan/00-MASTER-ARCHITECTURE.md §2.
+packages:
+  - apps/gateway
+  - apps/web
+  - packages/*

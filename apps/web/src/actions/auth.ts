@@ -1,0 +1,160 @@
+"use server";
+
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { sql } from "drizzle-orm";
+import { users } from "@deepcode/db";
+import { auth } from "@/lib/auth";
+import { currentUser, clientIpOrNull } from "@/lib/guards";
+import { limiterKey } from "@/lib/clientIp";
+import { db } from "@/lib/db";
+import { createDesktopAuthCode } from "@/lib/desktopAuth";
+import { rateLimit } from "@/lib/rateLimit";
+
+/**
+ * Auth form actions wrapping better-auth's server API (docs/plan/03 §4). Cookies
+ * are set by better-auth through next/headers (nextCookies plugin). Errors are
+ * generic: no account enumeration (W-01).
+ */
+export interface AuthState {
+  error?: "invalid_credentials" | "email_taken" | "unverified" | "invalid_input" | "weak_password" | "rate_limited";
+}
+
+/**
+ * Better Auth's limiter runs only in its HTTP handler, not on direct `auth.api.*`
+ * calls (review M2) — every server action that touches credentials is rate
+ * limited here, keyed by client IP and, where applicable, the target email.
+ */
+async function authRateLimit(scope: string, extra: string, limit: number): Promise<AuthState | null> {
+  // Per target always; per IP only when a trusted proxy reports it (review: a
+  // spoofable header must not choose the bucket). Without one, a high shared
+  // ceiling bounds load without letting one client lock everyone out.
+  const bucket = limiterKey(await clientIpOrNull());
+  const byIp = await rateLimit(`auth:${scope}:${bucket.key}`, bucket.shared ? limit * 30 : limit, 60);
+  const byTarget = await rateLimit(`auth:${scope}:target:${extra.toLowerCase()}`, limit, 60);
+  return byIp.allowed && byTarget.allowed ? null : { error: "rate_limited" };
+}
+
+const CredentialsSchema = z.object({
+  email: z.string().trim().email().max(200),
+  password: z.string().min(10).max(200),
+});
+
+export async function signInAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  const parsed = CredentialsSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) return { error: "invalid_input" };
+  const limited = await authRateLimit("signin", parsed.data.email, 10);
+  if (limited) return limited;
+  const h = await headers();
+  try {
+    await auth.api.signInEmail({
+      body: { email: parsed.data.email, password: parsed.data.password },
+      headers: h,
+    });
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    const code = (err as { code?: string; message?: string })?.code ?? (err as Error).message;
+    if (code === "EMAIL_NOT_VERIFIED") return { error: "unverified" };
+    return { error: "invalid_credentials" };
+  }
+  // returnTo is a same-app path only (no protocol, no authority, no "//") — no
+  // open redirect. Desktop consent paths legitimately carry a query string.
+  const returnTo = String(formData.get("returnTo") ?? "");
+  if (/^\/(ar|en)\/[a-z0-9/_-]+(\?[A-Za-z0-9_=&%+.*-]+)?$/.test(returnTo) && !returnTo.includes("//")) {
+    redirect(returnTo);
+  }
+  redirect("/dashboard");
+}
+
+export async function signUpAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  const schema = CredentialsSchema.extend({
+    name: z.string().trim().min(1).max(100),
+  });
+  const parsed = schema.safeParse({
+    name: formData.get("name"),
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) return { error: "invalid_input" };
+  const locale = z.enum(["ar", "en"]).catch("ar").parse(formData.get("locale"));
+  const signupLimited = await authRateLimit("signup", parsed.data.email, 5);
+  if (signupLimited) return signupLimited;
+  const h = await headers();
+  try {
+    await auth.api.signUpEmail({
+      body: {
+        name: parsed.data.name,
+        email: parsed.data.email,
+        password: parsed.data.password,
+      },
+      headers: h,
+    });
+    // Persist the UI locale on the user row (locale is an additional field,
+    // not part of better-auth's body contract).
+    await db().db
+      .update(users)
+      .set({ locale, updatedAt: new Date() })
+      .where(sql`lower(${users.email}) = ${parsed.data.email.toLowerCase()}`);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    const body = err as { code?: string; message?: string };
+    if (body?.code === "USER_ALREADY_EXISTS" || body.message?.includes("already")) return { error: "email_taken" };
+    return { error: "invalid_input" };
+  }
+  redirect("/verify-email?sent=1");
+}
+
+export async function signOutAction(): Promise<void> {
+  const h = await headers();
+  await auth.api.signOut({ headers: h });
+  redirect("/");
+}
+
+export async function requestPasswordResetAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  const email = z.string().trim().email().max(200).safeParse(formData.get("email"));
+  // Always "sent": no account enumeration (W-01). The action is rate limited by
+  // IP and target before asking better-auth to send anything, bounding mail-bombing.
+  if (!email.success) return {};
+  const resetLimited = await authRateLimit("reset", email.data, 5);
+  if (resetLimited) return resetLimited;
+  const h = await headers();
+  try {
+    await auth.api.requestPasswordReset({ body: { email: email.data, redirectTo: "/reset-password" }, headers: h });
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    // swallowed: the response is identical either way
+  }
+  redirect("/forgot-password?sent=1");
+}
+
+/** The desktop consent screen approval (docs/plan/03 §4.1 step 4). */
+export async function approveDesktopAuthAction(formData: FormData): Promise<void> {
+  const user = await currentUser();
+  if (!user) redirect("/sign-in");
+  const schema = z.object({
+    state: z.string().min(16).max(128),
+    code_challenge: z.string().min(43).max(128),
+    device_name: z.string().min(1).max(100),
+    os: z.string().min(1).max(50),
+    app_version: z.string().max(50).optional().or(z.literal("")),
+  });
+  const parsed = schema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect("/auth/desktop?error=invalid");
+  const { code } = await createDesktopAuthCode(db().db, user!.id, {
+    state: parsed.data.state,
+    codeChallenge: parsed.data.code_challenge,
+    deviceName: parsed.data.device_name,
+    os: parsed.data.os,
+    appVersion: parsed.data.app_version || undefined,
+  });
+  redirect(`/auth/desktop/done?code=${encodeURIComponent(code)}&state=${encodeURIComponent(parsed.data.state)}`);
+}
+
+/** redirect() throws NEXT_REDIRECT — never swallow it in the try blocks above. */
+function isRedirect(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "digest" in err && String((err as { digest?: string }).digest).startsWith("NEXT_REDIRECT");
+}

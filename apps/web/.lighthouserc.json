@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/GoogleChrome/lighthouse-ci/main/docs/schema.json",
+  "ci": {
+    "collect": {
+      "startServerCommand": "pnpm start",
+      "startServerReadyPattern": "Ready",
+      "numberOfRuns": 1,
+      "settings": { "preset": "desktop" },
+      "url": [
+        "http://localhost:3210/ar",
+        "http://localhost:3210/en/pricing",
+        "http://localhost:3210/en/download"
+      ]
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": ["error", { "minScore": 0.6 }],
+        "categories:accessibility": ["error", { "minScore": 0.9 }],
+        "categories:best-practices": ["warn", { "minScore": 0.8 }],
+        "largest-contentful-paint": ["warn", { "maxNumericValue": 4000 }],
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.05 }],
+        "total-byte-weight": ["warn", { "maxNumericValue": 1200000 }]
+      }
+    },
+    "upload": { "target": "temporary-public-storage" }
+  }
+}

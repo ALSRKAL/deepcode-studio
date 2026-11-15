@@ -1,0 +1,35 @@
+{
+	admin off
+	auto_https off
+	# The platform terminates TLS in front of us.
+	servers {
+		protocols h1 h2c
+	}
+}
+
+:{$PORT:10000} {
+	# Never compress the gateway's streams (they must flush event by event).
+	@compressible not path /v1/* /v1beta/*
+	encode @compressible gzip
+
+	@gateway path /v1/* /v1beta/* /healthz /readyz
+	handle @gateway {
+		reverse_proxy 127.0.0.1:8790 {
+			flush_interval -1
+			transport http {
+				read_timeout 15m
+				write_timeout 15m
+			}
+		}
+	}
+
+	# Internal and metrics endpoints are only for processes inside this container.
+	@internal path /internal/* /metrics
+	handle @internal {
+		respond 404
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}

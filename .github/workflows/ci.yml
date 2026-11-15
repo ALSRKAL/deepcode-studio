@@ -1,0 +1,111 @@
+name: ci
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Test-time secrets (fixtures only; gitleaks allowlists cover these values).
+  AUTH_SECRET: ci-only-secret-value-for-vitest-global-setup-0000000000
+  KEY_HASH_PEPPER: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+  POOL_KEY_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+  GATEWAY_INTERNAL_TOKEN: ci-only-internal-token-0123456789abcdef0123456789abcdef
+  MOCK_BILLING_WEBHOOK_SECRET: Y2ktb25seS1tb2NrLXdlYmhvb2stc2VjcmV0LTAxMjM0NTY3ODk=
+
+jobs:
+  secrets:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  check:
+    name: build · typecheck · lint · tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      # Integration tests start Postgres and Redis through Testcontainers.
+      - run: pnpm test
+
+  e2e:
+    name: web e2e (Playwright, ar/en, desktop/mobile)
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: deepcode
+          POSTGRES_PASSWORD: deepcode
+          POSTGRES_DB: deepcode
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U deepcode" --health-interval 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+      mailpit:
+        image: axllent/mailpit:latest
+        ports: ["1025:1025", "8025:8025"]
+    env:
+      DATABASE_URL: postgres://deepcode:deepcode@127.0.0.1:5432/deepcode
+      REDIS_URL: redis://127.0.0.1:6379
+      SMTP_URL: smtp://127.0.0.1:1025
+      MAIL_API_URL: http://127.0.0.1:8025
+      APP_URL: http://localhost:3210
+      BILLING_PROVIDER: mock
+      ALLOW_MOCK_BILLING: "true"
+      ADMIN_2FA_REQUIRED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm db:migrate
+      - run: pnpm db:seed > /dev/null
+      - run: pnpm --filter @deepcode/web exec playwright install --with-deps chromium
+      - name: Start the web server
+        working-directory: apps/web
+        run: |
+          nohup node node_modules/next/dist/bin/next start --port 3210 > ../../next.log 2>&1 &
+          for i in $(seq 1 60); do curl -fsS http://localhost:3210/ar > /dev/null && exit 0; sleep 2; done
+          cat ../../next.log; exit 1
+      - run: pnpm --filter @deepcode/web exec playwright test
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+            next.log
+          retention-days: 7
+
+  image:
+    name: deploy image builds
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f infra/render/Dockerfile -t deepcode-server:ci .

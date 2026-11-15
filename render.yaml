@@ -1,0 +1,71 @@
+# Render Blueprint — DeepCode Studio server on the free plan (docs/deploy/README.ar.md).
+# One web service runs gateway + web portal + Caddy (infra/render/Dockerfile).
+# Postgres: Neon free. Redis: Redis Cloud free. Values marked `sync: false` are
+# entered once in the Render dashboard; generate secrets with
+# infra/render/gen-secrets.sh and keep a copy (losing POOL_KEY_ENCRYPTION_KEY makes
+# stored upstream keys unreadable).
+services:
+  - type: web
+    name: deepcode
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./infra/render/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      # --- external services -------------------------------------------------
+      - key: DATABASE_URL # Neon connection string (sslmode=require)
+        sync: false
+      - key: REDIS_URL # Redis Cloud: redis://default:<password>@<host>:<port>
+        sync: false
+      # --- secrets (infra/render/gen-secrets.sh) -------------------------------
+      - key: POOL_KEY_ENCRYPTION_KEY
+        sync: false
+      - key: KEY_HASH_PEPPER
+        sync: false
+      - key: AUTH_SECRET
+        sync: false
+      - key: GATEWAY_INTERNAL_TOKEN
+        sync: false
+      - key: MANIFEST_SIGNING_KEY
+        sync: false
+      # --- public addresses (your Render URL, e.g. https://deepcode-xxxx.onrender.com)
+      - key: APP_URL
+        sync: false
+      - key: GATEWAY_PUBLIC_WEB_ORIGIN
+        sync: false
+      - key: NEXT_PUBLIC_GATEWAY_URL
+        sync: false
+      # --- payments: UPI QR + approval from the admin phone app ---------------
+      - key: BILLING_PROVIDER
+        value: upi
+      - key: UPI_PAYEE_VPA # e.g. yourname@ybl
+        sync: false
+      - key: UPI_PAYEE_NAME
+        value: DeepCode Studio
+      - key: FIREBASE_ADMIN_PROJECT_ID
+        sync: false
+      - key: FIREBASE_ADMIN_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_ADMIN_PRIVATE_KEY
+        sync: false
+      - key: ADMIN_PUSH_TOPIC
+        value: admins
+      # --- email (Brevo free SMTP, 300 mails/day) -------------------------------
+      - key: SMTP_URL # smtps://<login>:<smtp-key>@smtp-relay.brevo.com:465
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      # --- free-tier tuning -----------------------------------------------------
+      - key: POOL_RELOAD_INTERVAL_MS
+        value: "1800000"
+      - key: CATALOG_RELOAD_INTERVAL_MS
+        value: "1800000"
+      - key: ADMIN_2FA_REQUIRED
+        value: "true"
+      - key: TRUST_PROXY
+        value: "false"
+      - key: LOG_LEVEL
+        value: info

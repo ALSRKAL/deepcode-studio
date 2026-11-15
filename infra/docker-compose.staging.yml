@@ -1,0 +1,100 @@
+# Local "staging" (docs/plan/04 §6, owner decision 6): gateway + web + Postgres +
+# Redis from built images. No deployment anywhere. First run
+# `infra/gen-staging-env.sh` (writes gitignored gateway.env/web.env), then
+# `docker compose -f infra/docker-compose.staging.yml up -d --build`.
+# Mailpit is included for verification email (never real addresses).
+name: deepcode-staging
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: deepcode
+      POSTGRES_PASSWORD: deepcode
+      POSTGRES_DB: deepcode
+    ports:
+      - "127.0.0.1:55433:5432"
+    volumes:
+      - staging_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deepcode -d deepcode"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:56380:6379"
+    volumes:
+      - staging_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: apps/gateway/Dockerfile
+    env_file:
+      - gateway.env
+    environment:
+      DATABASE_URL: postgres://deepcode:deepcode@postgres:5432/deepcode
+      REDIS_URL: redis://redis:6379
+      GATEWAY_PORT: 8790
+      GATEWAY_METRICS_PORT: 8791
+      GATEWAY_METRICS_HOST: 0.0.0.0
+      GATEWAY_PUBLIC_WEB_ORIGIN: http://localhost:3211
+      LOG_LEVEL: info
+    ports:
+      - "127.0.0.1:8790:8790"
+      - "127.0.0.1:8791:8791"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/web.Dockerfile
+    env_file:
+      - web.env
+    environment:
+      DATABASE_URL: postgres://deepcode:deepcode@postgres:5432/deepcode
+      REDIS_URL: redis://redis:6379
+      GATEWAY_URL: http://gateway:8790
+      NEXT_PUBLIC_GATEWAY_URL: http://127.0.0.1:8790
+      APP_URL: http://localhost:3211
+      # Local staging only: mock checkout is loopback-bound, never a public deploy.
+      BILLING_PROVIDER: mock
+      ALLOW_MOCK_BILLING: "true"
+      SMTP_URL: smtp://mailpit:1025
+      MAIL_FROM: no-reply@deepcode.example
+      MANIFEST_KEY_ID: deepcode-sync-staging
+      STORAGE_DIR: /data/storage
+      ADMIN_2FA_REQUIRED: "false"
+      PORT: 3211
+    ports:
+      - "127.0.0.1:3211:3211"
+    volumes:
+      - staging_storage:/data/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:55126:1025"
+      - "127.0.0.1:55181:8025"
+
+volumes:
+  staging_pgdata:
+  staging_redisdata:
+  staging_storage:

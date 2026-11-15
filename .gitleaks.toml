@@ -1,0 +1,29 @@
+title = "DeepCode Studio secret scanning"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "deepcode-virtual-key"
+description = "DeepCode virtual API key"
+regex = '''sk-dc-[A-Za-z0-9]{43}'''
+tags = ["key", "deepcode"]
+
+[[rules]]
+id = "opencode-api-key"
+description = "Possible OpenCode API key assignment"
+regex = '''(?i)(opencode|pool|upstream)[_-]?(api)?[_-]?key\s*[:=]\s*['"]?[A-Za-z0-9_\-]{24,}'''
+tags = ["key", "upstream"]
+
+[allowlist]
+description = "Test fixtures and CI use obviously fake, deterministic values"
+paths = ['''(^|/)test/fixtures/''']
+regexes = [
+  '''sk-dc-0{43}''',
+  '''mock-upstream-key-[a-z0-9-]+''',
+  # .github/workflows/ci.yml: fixed, public CI-only values for vitest setup.
+  '''ci-only-secret-value-for-vitest-global-setup-0000000000''',
+  '''ci-only-internal-token-0123456789abcdef0123456789abcdef''',
+  '''MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=''',
+  '''Y2ktb25seS1tb2NrLXdlYmhvb2stc2VjcmV0LTAxMjM0NTY3ODk=''',
+]

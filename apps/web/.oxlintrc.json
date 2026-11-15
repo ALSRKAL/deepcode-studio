@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "categories": { "correctness": "error" },
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["@deepcode/gateway", "@deepcode/gateway/*"],
+            "message": "The web app must never import gateway code: it contains the pool-key decrypt path (docs/plan/04 §3.1)."
+          },
+          {
+            "group": ["@deepcode/shared/node", "@deepcode/shared/node"],
+            "message": "Import only the narrow subpaths the web app is allowed to use (@deepcode/shared/node/keys, @deepcode/shared/node/pool-crypto). The aggregate entry may gain decrypt-capable helpers later; the ban keeps apps/web free of them (docs/plan/04 §3.1)."
+          }
+        ]
+      }
+    ]
+  },
+  "ignorePatterns": ["node_modules", ".next", "playwright-report", "test-results", "lighthouse"]
+}

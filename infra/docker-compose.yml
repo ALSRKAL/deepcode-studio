@@ -1,0 +1,41 @@
+# Local development services. Ports are offset (55432, 56379) because a local
+# Postgres and Redis already listen on the defaults on the development machine.
+name: deepcode
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: deepcode
+      POSTGRES_PASSWORD: deepcode
+      POSTGRES_DB: deepcode
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deepcode -d deepcode"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:56379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  # Local mail catcher for verification / password-reset email (docs/plan PROMPT §7).
+  # Real addresses are never contacted from a dev machine; UI at :55180.
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:55125:1025"
+      - "127.0.0.1:55180:8025"
+volumes:
+  pgdata:
+  redisdata:

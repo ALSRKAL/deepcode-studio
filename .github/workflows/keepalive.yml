@@ -1,0 +1,23 @@
+name: keep-alive
+
+# Render's free plan sleeps after 15 idle minutes and the first request then
+# waits ~1 minute (bad for the desktop app). This pings /healthz every 10 min.
+# Set the repository variable DEEPCODE_PUBLIC_URL (e.g. https://deepcode-xxxx.onrender.com).
+# Notes: GitHub may delay scheduled runs by several minutes, and disables schedules
+# in public repos after 60 days without commits — re-enable from the Actions tab.
+# One always-on service uses ~744 of Render's 750 free hours per month.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    if: vars.DEEPCODE_PUBLIC_URL != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Ping
+        run: curl -fsS --max-time 90 "${{ vars.DEEPCODE_PUBLIC_URL }}/healthz" || true
