@@ -38,7 +38,11 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
-COPY --from=caddy /usr/bin/caddy /usr/bin/caddy
+COPY --from=caddy /usr/bin/caddy /usr/bin/caddy.cap
+# The upstream binary carries a cap_net_bind_service file capability; under Render's
+# no-new-privileges exec fails ("Operation not permitted"). A plain cp drops the xattr,
+# and :10000 needs no capability.
+RUN cp /usr/bin/caddy.cap /usr/bin/caddy && rm /usr/bin/caddy.cap && chmod 755 /usr/bin/caddy
 COPY --from=build --chown=node:node /out/gateway ./gateway
 COPY --from=build --chown=node:node /out/web ./web
 COPY --chown=node:node infra/render/Caddyfile infra/render/start.sh ./
