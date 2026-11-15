@@ -2,11 +2,59 @@
 
 import { useActionState } from "react";
 import { useTranslations } from "next-intl";
-import { registerReleaseAction, publishReleaseAction, type ReleaseState } from "@/actions/releases";
+import {
+  registerReleaseAction,
+  publishReleaseAction,
+  importGithubReleaseAction,
+  type ReleaseState,
+} from "@/actions/releases";
 
 const input =
   "h-10 rounded-sm border border-border bg-surface px-3 text-[14px] placeholder:text-fg-subtle disabled:opacity-50";
 const label = "grid gap-1.5 text-[14px]";
+
+/** One click: import + publish the installers of a GitHub release built by the desktop CI. */
+export function ImportReleaseForm() {
+  const t = useTranslations("admin");
+  const [state, action, pending] = useActionState<ReleaseState, FormData>(importGithubReleaseAction, {});
+  return (
+    <div className="rounded-lg border border-primary/40 bg-surface p-6">
+      <p className="font-medium">{t("importRelease")}</p>
+      <p className="mt-1 text-[13px] text-fg-muted leading-6">{t("importReleaseBody")}</p>
+      <form action={action} className="mt-4 flex flex-wrap items-end gap-3">
+        <label className={label}>
+          <span className="text-fg-muted">{t("importReleaseTag")}</span>
+          <input name="tag" placeholder="v0.1.0" className={`${input} w-40 font-mono`} dir="ltr" />
+        </label>
+        <label className={label}>
+          <span className="text-fg-muted">{t("channel")}</span>
+          <select name="channel" className={input} defaultValue="stable">
+            <option value="stable">stable</option>
+            <option value="preview">preview</option>
+          </select>
+        </label>
+        <button
+          type="submit"
+          disabled={pending}
+          aria-busy={pending}
+          className="h-10 rounded-sm bg-primary px-4 text-[14px] font-medium text-primary-fg hover:bg-primary-hover disabled:opacity-50"
+        >
+          {pending ? "…" : t("importReleaseSubmit")}
+        </button>
+      </form>
+      {state.error ? (
+        <p role="alert" className="mt-3 text-[13px] text-danger">
+          {t.has(`errors.${state.error}`) ? t(`errors.${state.error}`) : state.error}
+        </p>
+      ) : null}
+      {state.ok ? (
+        <p role="status" className="mt-3 text-[13px] text-success">
+          {t("importReleaseDone", { count: state.imported ?? 0, tag: state.tag ?? "" })}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 export function ReleaseForms() {
   const t = useTranslations("admin");

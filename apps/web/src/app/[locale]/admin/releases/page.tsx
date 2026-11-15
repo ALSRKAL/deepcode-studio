@@ -4,7 +4,7 @@ import { releases } from "@deepcode/db";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/guards";
 import { Card, Badge, Num } from "@/components/ui/primitives";
-import { ReleaseForms } from "@/components/releases-client";
+import { ImportReleaseForm, ReleaseForms } from "@/components/releases-client";
 import { LtrIsland } from "@/components/ltr-island";
 
 /** Releases admin (docs/plan/03 §6.5): register builds, promote preview → stable. */
@@ -18,6 +18,7 @@ export default async function AdminReleasesPage({ params }: { params: Promise<{ 
   return (
     <div className="grid gap-6">
       <h1 className="text-scale-lg font-semibold">{t("releases")}</h1>
+      <ImportReleaseForm />
       <ReleaseForms />
       <Card className="overflow-x-auto">
         <table className="w-full text-[14px]">

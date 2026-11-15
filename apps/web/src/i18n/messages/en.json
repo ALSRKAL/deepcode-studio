@@ -327,7 +327,19 @@
     "publishRelease": "Publish release",
     "noReleases": "No releases registered.",
     "payments": "Payments",
-    "providers": "Providers"
+    "providers": "Providers",
+    "importRelease": "Import desktop release from GitHub",
+    "importReleaseBody": "Reads the installers (Windows, macOS, Linux) and their checksums from the GitHub release built by CI, registers and publishes them to the download page and auto-update. Leave the tag empty for the latest release.",
+    "importReleaseTag": "Tag",
+    "importReleaseSubmit": "Import and publish",
+    "importReleaseDone": "Published {count} installers from {tag}.",
+    "errors": {
+      "import_not_found": "Release not found on GitHub (CI may still be building it).",
+      "import_no_checksums": "The release has no SHA256SUMS.txt.",
+      "import_no_installers": "No recognised installers in this release.",
+      "import_github_error": "Could not reach GitHub. Try again.",
+      "invalid_input": "Check the fields."
+    }
   },
   "mockBilling": {
     "title": "Test checkout (test mode)",

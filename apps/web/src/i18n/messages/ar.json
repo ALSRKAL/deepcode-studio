@@ -327,7 +327,19 @@
     "publishRelease": "نشر الإصدار",
     "noReleases": "لا إصدارات مسجلة.",
     "payments": "المدفوعات",
-    "providers": "المزوّدون"
+    "providers": "المزوّدون",
+    "importRelease": "استيراد إصدار التطبيق من GitHub",
+    "importReleaseBody": "يقرأ ملفات التثبيت (ويندوز، ماك، لينكس) وبصماتها من إصدار GitHub الذي بناه CI، ويضيفها وينشرها مباشرة في صفحة التنزيل والتحديث التلقائي. اترك الرقم فارغاً لأحدث إصدار.",
+    "importReleaseTag": "رقم الإصدار",
+    "importReleaseSubmit": "استيراد ونشر",
+    "importReleaseDone": "تم نشر {count} ملف تثبيت من {tag}.",
+    "errors": {
+      "import_not_found": "لم يُعثر على هذا الإصدار في GitHub (ربما ما زال CI يبنيه).",
+      "import_no_checksums": "الإصدار لا يحتوي SHA256SUMS.txt.",
+      "import_no_installers": "لا توجد ملفات تثبيت معروفة في هذا الإصدار.",
+      "import_github_error": "تعذّر الاتصال بـ GitHub. أعد المحاولة.",
+      "invalid_input": "تحقق من الحقول."
+    }
   },
   "mockBilling": {
     "title": "دفع تجريبي (وضع الاختبار)",
