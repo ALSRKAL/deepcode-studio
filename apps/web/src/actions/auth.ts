@@ -11,6 +11,7 @@ import { limiterKey } from "@/lib/clientIp";
 import { db } from "@/lib/db";
 import { createDesktopAuthCode } from "@/lib/desktopAuth";
 import { rateLimit } from "@/lib/rateLimit";
+import { googleSignInEnabled } from "@/lib/oauth";
 
 /**
  * Auth form actions wrapping better-auth's server API (docs/plan/03 §4). Cookies
@@ -61,13 +62,33 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
     if (code === "EMAIL_NOT_VERIFIED") return { error: "unverified" };
     return { error: "invalid_credentials" };
   }
-  // returnTo is a same-app path only (no protocol, no authority, no "//") — no
-  // open redirect. Desktop consent paths legitimately carry a query string.
-  const returnTo = String(formData.get("returnTo") ?? "");
-  if (/^\/(ar|en)\/[a-z0-9/_-]+(\?[A-Za-z0-9_=&%+.*-]+)?$/.test(returnTo) && !returnTo.includes("//")) {
-    redirect(returnTo);
-  }
-  redirect("/dashboard");
+  redirect(safeReturnTo(formData.get("returnTo")) ?? "/dashboard");
+}
+
+// returnTo is a same-app path only (no protocol, no authority, no "//") — no
+// open redirect. Desktop consent paths legitimately carry a query string.
+function safeReturnTo(value: FormDataEntryValue | null): string | null {
+  const returnTo = String(value ?? "");
+  return /^\/(ar|en)\/[a-z0-9/_-]+(\?[A-Za-z0-9_=&%+.*-]+)?$/.test(returnTo) && !returnTo.includes("//")
+    ? returnTo
+    : null;
+}
+
+/** "Continue with Google": sign-in and sign-up in one (Google verifies the email). */
+export async function googleSignInAction(formData: FormData): Promise<void> {
+  const locale = z.enum(["ar", "en"]).catch("ar").parse(formData.get("locale"));
+  if (!googleSignInEnabled()) redirect(`/${locale}/sign-in?error=oauth`);
+  const res = await auth.api.signInSocial({
+    body: {
+      provider: "google",
+      callbackURL: safeReturnTo(formData.get("returnTo")) ?? `/${locale}/dashboard`,
+      errorCallbackURL: `/${locale}/sign-in?error=oauth`,
+      newUserCallbackURL: `/${locale}/dashboard`,
+    },
+    headers: await headers(),
+  });
+  if (!res?.url) redirect(`/${locale}/sign-in?error=oauth`);
+  redirect(res.url);
 }
 
 export async function signUpAction(_prev: AuthState, formData: FormData): Promise<AuthState> {

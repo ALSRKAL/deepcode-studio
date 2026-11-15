@@ -118,8 +118,11 @@
       "unverified": "Your email isn't verified yet. Check your inbox.",
       "invalid_input": "Check the fields and try again.",
       "rate_limited": "Too many attempts. Try again in a minute.",
-      "weak_password": "Password too short — at least 10 characters."
-    }
+      "weak_password": "Password too short — at least 10 characters.",
+      "oauth": "Google sign-in failed. Please try again."
+    },
+    "google": "Continue with Google",
+    "or": "or"
   },
   "desktop": {
     "consentTitle": "Connect the app to your account",

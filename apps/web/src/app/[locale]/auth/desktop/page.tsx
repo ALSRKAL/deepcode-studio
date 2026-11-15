@@ -6,7 +6,8 @@ import { currentUser } from "@/lib/guards";
 import { db } from "@/lib/db";
 import { approveDesktopAuthAction } from "@/actions/auth";
 import { SubmitButton } from "@/components/ui/client";
-import { SignInForm } from "@/components/auth-forms";
+import { GoogleSignIn, SignInForm } from "@/components/auth-forms";
+import { googleSignInEnabled } from "@/lib/oauth";
 import { Card } from "@/components/ui/primitives";
 import { LtrIsland } from "@/components/ltr-island";
 
@@ -69,6 +70,7 @@ export default async function DesktopAuthPage({
       <main className="mx-auto grid min-h-dvh w-full max-w-sm place-content-center gap-6 px-4">
         <h1 className="text-scale-md font-semibold text-center">{t("consentTitle")}</h1>
         <p className="text-fg-muted text-[14px] leading-6">{t("consentBody")}</p>
+        {googleSignInEnabled() ? <GoogleSignIn locale={locale} returnTo={returnTo} /> : null}
         <SignInForm returnTo={returnTo} />
       </main>
     );
