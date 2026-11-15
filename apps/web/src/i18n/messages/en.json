@@ -119,10 +119,18 @@
       "invalid_input": "Check the fields and try again.",
       "rate_limited": "Too many attempts. Try again in a minute.",
       "weak_password": "Password too short — at least 10 characters.",
-      "oauth": "Google sign-in failed. Please try again."
+      "oauth": "Google sign-in failed. Please try again.",
+      "invalid_code": "The code is wrong or has expired.",
+      "expired_challenge": "Verification timed out. Sign in again."
     },
     "google": "Continue with Google",
-    "or": "or"
+    "or": "or",
+    "twoFactorTitle": "Two-factor verification",
+    "twoFactorBody": "Enter the 6-digit code from your authenticator app, or one of your backup codes.",
+    "twoFactorCode": "Verification code",
+    "twoFactorTrust": "Trust this device for 30 days",
+    "twoFactorSubmit": "Verify and sign in",
+    "twoFactorBack": "Back to sign in"
   },
   "desktop": {
     "consentTitle": "Connect the app to your account",
@@ -260,7 +268,9 @@
     "deleteBody": "Deletes the account, keys and devices and anonymises usage rows. This cannot be undone.",
     "deleteConfirm": "Type DELETE to confirm",
     "saved": "Saved",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "twofaEnabledNotice": "Two-factor authentication is on. Keep the authenticator app on your phone.",
+    "twofaDisabledNotice": "Two-factor authentication is off."
   },
   "admin": {
     "title": "Admin",

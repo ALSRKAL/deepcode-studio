@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import QRCode from "qrcode";
 import { auth } from "@/lib/auth";
-import { requireUser } from "@/lib/guards";
+import { applyAuthSetCookies } from "@/lib/authCookies";
+import { currentLocale, requireUser, localized } from "@/lib/guards";
 import { db } from "@/lib/db";
 import { invalidateGateway } from "@/lib/gateway";
 import { deleteUserAccount } from "@/lib/accountDeletion";
@@ -93,12 +94,15 @@ export async function verifyTwoFactorAction(_prev: SettingsState, formData: Form
   if (!code.success) return { error: "invalid_input" };
   const h = await headers();
   try {
-    await auth.api.verifyTOTP({ body: { code: code.data }, headers: h });
+    // Enabling 2FA replaces the session: forward the new session cookie explicitly.
+    const res = await auth.api.verifyTOTP({ body: { code: code.data }, headers: h, returnHeaders: true });
+    await applyAuthSetCookies(res.headers);
   } catch {
     return { error: "invalid_input" };
   }
-  revalidatePath("/dashboard/settings");
-  return { ok: true };
+  // A fresh request carries the NEW session cookie; re-rendering in this one would
+  // still see the deleted session and bounce to sign-in.
+  redirect(`/${await currentLocale()}/dashboard/settings?twofa=enabled`);
 }
 
 export async function disableTwoFactorAction(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
@@ -107,12 +111,12 @@ export async function disableTwoFactorAction(_prev: SettingsState, formData: For
   if (!password.success) return { error: "invalid_input" };
   const h = await headers();
   try {
-    await auth.api.disableTwoFactor({ body: { password: password.data }, headers: h });
+    const res = await auth.api.disableTwoFactor({ body: { password: password.data }, headers: h, returnHeaders: true });
+    await applyAuthSetCookies(res.headers);
   } catch {
     return { error: "invalid_credentials" };
   }
-  revalidatePath("/dashboard/settings");
-  return { ok: true };
+  redirect(`/${await currentLocale()}/dashboard/settings?twofa=disabled`);
 }
 
 /**
@@ -137,5 +141,5 @@ export async function deleteAccountAction(_prev: SettingsState, formData: FormDa
   await invalidateGateway({ userIds: [user.id] });
   const h = await headers();
   await auth.api.signOut({ headers: h });
-  redirect("/");
+  redirect(await localized("/"));
 }

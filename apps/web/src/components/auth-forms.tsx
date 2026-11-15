@@ -3,7 +3,13 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { useTranslations } from "next-intl";
-import { signInAction, signUpAction, requestPasswordResetAction, googleSignInAction } from "@/actions/auth";
+import {
+  signInAction,
+  signUpAction,
+  requestPasswordResetAction,
+  googleSignInAction,
+  verifySignInTwoFactorAction,
+} from "@/actions/auth";
 
 function Field({
   label,
@@ -52,6 +58,40 @@ export function SignInForm({ returnTo }: { returnTo?: string }) {
       <Field label={t("email")} name="email" type="email" autoComplete="email" />
       <Field label={t("password")} name="password" type="password" autoComplete="current-password" />
       <AuthSubmit>{t("submitSignIn")}</AuthSubmit>
+    </form>
+  );
+}
+
+/** Code from the authenticator app (6 digits) or one of the backup codes. */
+export function TwoFactorSignInForm({ returnTo }: { returnTo?: string }) {
+  const t = useTranslations("auth");
+  const [state, action] = useActionState(verifySignInTwoFactorAction, {});
+  return (
+    <form action={action} className="grid gap-4">
+      {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
+      {state.error ? (
+        <p role="alert" className="rounded-sm border border-danger/40 bg-danger/5 px-3 py-2 text-[13px] text-danger">
+          {t(`errors.${state.error}`)}
+        </p>
+      ) : null}
+      <label className="grid gap-1.5 text-[14px]">
+        <span className="text-fg-muted">{t("twoFactorCode")}</span>
+        <input
+          name="code"
+          required
+          autoFocus
+          autoComplete="one-time-code"
+          inputMode="text"
+          maxLength={32}
+          dir="ltr"
+          className="h-10 rounded-sm border border-border bg-surface px-3 font-mono text-[16px] tracking-widest text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        />
+      </label>
+      <label className="flex items-center gap-2 text-[14px] text-fg-muted">
+        <input type="checkbox" name="trustDevice" className="size-4 accent-[var(--color-primary)]" />
+        {t("twoFactorTrust")}
+      </label>
+      <AuthSubmit>{t("twoFactorSubmit")}</AuthSubmit>
     </form>
   );
 }

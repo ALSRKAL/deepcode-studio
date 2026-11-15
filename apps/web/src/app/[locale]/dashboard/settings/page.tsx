@@ -32,6 +32,11 @@ export default async function SettingsPage({
           {t("twofaRequiredAdmin")}
         </p>
       ) : null}
+      {sp.twofa === "enabled" || sp.twofa === "disabled" ? (
+        <p role="status" className="rounded-lg border border-success/40 bg-success/5 p-3 text-[13px] text-success">
+          {t(sp.twofa === "enabled" ? "twofaEnabledNotice" : "twofaDisabledNotice")}
+        </p>
+      ) : null}
 
       <Card className="p-6">
         <SettingsClient

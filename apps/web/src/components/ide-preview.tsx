@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useLocale } from "next-intl";
 
 /**
  * The hero's interactive IDE preview (docs/plan/03 §3): a real React mock of the
@@ -10,11 +11,12 @@ import { useEffect, useRef, useState } from "react";
  * from the LTR code pane.
  */
 export function IdePreview() {
-  const [dir, setDir] = useState<"rtl" | "ltr">("rtl");
+  // Starts in the page's language; the toggle still flips it live.
+  const [dir, setDir] = useState<"rtl" | "ltr">(useLocale() === "ar" ? "rtl" : "ltr");
   const [typed, setTyped] = useState(0);
   const [visible, setVisible] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
-  const prompt = "أضف دالة تحقق للبريد الإلكتروني في utils.ts";
+  const prompt = dir === "rtl" ? "أضف دالة تحقق للبريد الإلكتروني في utils.ts" : "Add an email validation function to utils.ts";
 
   useEffect(() => {
     const el = ref.current;
@@ -43,7 +45,10 @@ export function IdePreview() {
         </span>
         <button
           type="button"
-          onClick={() => setDir((d) => (d === "rtl" ? "ltr" : "rtl"))}
+          onClick={() => {
+            setDir((d) => (d === "rtl" ? "ltr" : "rtl"));
+            setTyped(0); // retype the prompt in the new language
+          }}
           className="ms-auto rounded-sm border border-border px-2 h-6 text-[11px] text-fg-muted hover:text-fg"
         >
           {dir === "rtl" ? "RTL → LTR" : "LTR → RTL"}

@@ -6,7 +6,8 @@ import { z } from "zod";
 import { sql } from "drizzle-orm";
 import { users } from "@deepcode/db";
 import { auth } from "@/lib/auth";
-import { currentUser, clientIpOrNull } from "@/lib/guards";
+import { applyAuthSetCookies } from "@/lib/authCookies";
+import { currentUser, clientIpOrNull, currentLocale, localized } from "@/lib/guards";
 import { limiterKey } from "@/lib/clientIp";
 import { db } from "@/lib/db";
 import { createDesktopAuthCode } from "@/lib/desktopAuth";
@@ -19,7 +20,15 @@ import { googleSignInEnabled } from "@/lib/oauth";
  * generic: no account enumeration (W-01).
  */
 export interface AuthState {
-  error?: "invalid_credentials" | "email_taken" | "unverified" | "invalid_input" | "weak_password" | "rate_limited";
+  error?:
+    | "invalid_credentials"
+    | "email_taken"
+    | "unverified"
+    | "invalid_input"
+    | "weak_password"
+    | "rate_limited"
+    | "invalid_code"
+    | "expired_challenge";
 }
 
 /**
@@ -51,18 +60,51 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
   const limited = await authRateLimit("signin", parsed.data.email, 10);
   if (limited) return limited;
   const h = await headers();
+  let twoFactor = false;
   try {
-    await auth.api.signInEmail({
+    const res = await auth.api.signInEmail({
       body: { email: parsed.data.email, password: parsed.data.password },
       headers: h,
     });
+    // With 2FA on, better-auth answers with a challenge (2FA cookie set) instead of a session.
+    twoFactor = (res as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect === true;
   } catch (err) {
     if (isRedirect(err)) throw err;
     const code = (err as { code?: string; message?: string })?.code ?? (err as Error).message;
     if (code === "EMAIL_NOT_VERIFIED") return { error: "unverified" };
     return { error: "invalid_credentials" };
   }
-  redirect(safeReturnTo(formData.get("returnTo")) ?? "/dashboard");
+  const returnTo = safeReturnTo(formData.get("returnTo"));
+  if (twoFactor) {
+    const locale = await currentLocale();
+    redirect(`/${locale}/sign-in/two-factor${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`);
+  }
+  redirect(returnTo ?? (await localized("/dashboard")));
+}
+
+/** Second step of a password sign-in for accounts with 2FA: authenticator code or a backup code. */
+export async function verifySignInTwoFactorAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  const raw = String(formData.get("code") ?? "").replace(/\s+/g, "");
+  const isTotp = /^\d{6}$/.test(raw);
+  if (!isTotp && !/^[A-Za-z0-9-]{8,32}$/.test(raw)) return { error: "invalid_code" };
+  const h = await headers();
+  // Per pending challenge (the signed 2FA cookie); better-auth also caps attempts per challenge.
+  const challenge = /two_factor=([^;]+)/.exec(h.get("cookie") ?? "")?.[1];
+  if (!challenge) return { error: "expired_challenge" };
+  const limited = await authRateLimit("signin-2fa", challenge.slice(0, 64), 10);
+  if (limited) return limited;
+  const trustDevice = formData.get("trustDevice") === "on";
+  try {
+    // The 2FA step creates the session: forward its cookie explicitly.
+    const res = isTotp
+      ? await auth.api.verifyTOTP({ body: { code: raw, trustDevice }, headers: h, returnHeaders: true })
+      : await auth.api.verifyBackupCode({ body: { code: raw, trustDevice }, headers: h, returnHeaders: true });
+    await applyAuthSetCookies(res.headers);
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    return { error: "invalid_code" };
+  }
+  redirect(safeReturnTo(formData.get("returnTo")) ?? (await localized("/dashboard")));
 }
 
 // returnTo is a same-app path only (no protocol, no authority, no "//") — no
@@ -126,13 +168,13 @@ export async function signUpAction(_prev: AuthState, formData: FormData): Promis
     if (body?.code === "USER_ALREADY_EXISTS" || body.message?.includes("already")) return { error: "email_taken" };
     return { error: "invalid_input" };
   }
-  redirect("/verify-email?sent=1");
+  redirect(await localized("/verify-email?sent=1"));
 }
 
 export async function signOutAction(): Promise<void> {
   const h = await headers();
   await auth.api.signOut({ headers: h });
-  redirect("/");
+  redirect(await localized("/"));
 }
 
 export async function requestPasswordResetAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
@@ -149,13 +191,13 @@ export async function requestPasswordResetAction(_prev: AuthState, formData: For
     if (isRedirect(err)) throw err;
     // swallowed: the response is identical either way
   }
-  redirect("/forgot-password?sent=1");
+  redirect(await localized("/forgot-password?sent=1"));
 }
 
 /** The desktop consent screen approval (docs/plan/03 §4.1 step 4). */
 export async function approveDesktopAuthAction(formData: FormData): Promise<void> {
   const user = await currentUser();
-  if (!user) redirect("/sign-in");
+  if (!user) redirect(await localized("/sign-in"));
   const schema = z.object({
     state: z.string().min(16).max(128),
     code_challenge: z.string().min(43).max(128),
@@ -164,7 +206,7 @@ export async function approveDesktopAuthAction(formData: FormData): Promise<void
     app_version: z.string().max(50).optional().or(z.literal("")),
   });
   const parsed = schema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) redirect("/auth/desktop?error=invalid");
+  if (!parsed.success) redirect(await localized("/auth/desktop?error=invalid"));
   const { code } = await createDesktopAuthCode(db().db, user!.id, {
     state: parsed.data.state,
     codeChallenge: parsed.data.code_challenge,
@@ -172,7 +214,7 @@ export async function approveDesktopAuthAction(formData: FormData): Promise<void
     os: parsed.data.os,
     appVersion: parsed.data.app_version || undefined,
   });
-  redirect(`/auth/desktop/done?code=${encodeURIComponent(code)}&state=${encodeURIComponent(parsed.data.state)}`);
+  redirect(await localized(`/auth/desktop/done?code=${encodeURIComponent(code)}&state=${encodeURIComponent(parsed.data.state)}`));
 }
 
 /** redirect() throws NEXT_REDIRECT — never swallow it in the try blocks above. */

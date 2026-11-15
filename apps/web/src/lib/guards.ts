@@ -45,6 +45,11 @@ export async function currentLocale(): Promise<"ar" | "en"> {
   return h.get("x-locale") === "en" ? "en" : "ar";
 }
 
+/** `path` under the current locale prefix: server actions redirect straight to the final URL. */
+export async function localized(path: string): Promise<string> {
+  return `/${await currentLocale()}${path === "/" ? "" : path}`;
+}
+
 /** Client IP behind a trusted proxy, else null (see lib/clientIp.ts). */
 export async function clientIpOrNull(): Promise<string | null> {
   return clientIpFromHeaders(await headers(), { trustProxy: env.TRUST_PROXY, hops: env.TRUSTED_PROXY_HOPS });
