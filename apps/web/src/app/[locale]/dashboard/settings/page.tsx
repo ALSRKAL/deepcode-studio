@@ -2,6 +2,9 @@ import { getTranslations } from "next-intl/server";
 import { requireUser } from "@/lib/guards";
 import { Card } from "@/components/ui/primitives";
 import { SettingsClient } from "@/components/settings-client";
+import { and, eq, isNotNull } from "drizzle-orm";
+import { authAccounts } from "@deepcode/db";
+import { db } from "@/lib/db";
 
 /** Settings (docs/plan/03 §5): profile, language, password, 2FA, delete account. */
 export default async function SettingsPage({
@@ -15,6 +18,11 @@ export default async function SettingsPage({
   const sp = await searchParams;
   const user = await requireUser();
   const t = await getTranslations("settings");
+  const [credential] = await db()
+    .db.select({ id: authAccounts.id })
+    .from(authAccounts)
+    .where(and(eq(authAccounts.userId, user.id), eq(authAccounts.providerId, "credential"), isNotNull(authAccounts.password)))
+    .limit(1);
 
   return (
     <div className="grid gap-6">
@@ -31,6 +39,7 @@ export default async function SettingsPage({
           locale={user.locale === "ar" ? "ar" : "en"}
           twoFactorEnabled={user.twoFactorEnabled}
           twofaUri={null}
+          hasPassword={Boolean(credential)}
         />
       </Card>
     </div>

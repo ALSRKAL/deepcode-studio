@@ -27,11 +27,14 @@ export function SettingsClient({
   initialName,
   locale,
   twoFactorEnabled,
+  hasPassword,
 }: {
   initialName: string;
   locale: string;
   twoFactorEnabled: boolean;
   twofaUri: string | null;
+  /** Google-only accounts have no password: hide the password fields. */
+  hasPassword: boolean;
 }) {
   const t = useTranslations("settings");
   const c = useTranslations("common");
@@ -62,6 +65,7 @@ export function SettingsClient({
         </button>
       </form>
 
+      {hasPassword ? (
       <form action={pwAction} className="grid gap-3 max-w-sm">
         <p className="font-medium">{t("password")}</p>
         <input name="currentPassword" type="password" placeholder="●●●●●●●●" className={input} required autoComplete="current-password" />
@@ -71,13 +75,16 @@ export function SettingsClient({
           {t("changePassword")}
         </button>
       </form>
+      ) : null}
 
       <div className="grid gap-3 max-w-md">
         <p className="font-medium">{t("twofa")}</p>
         {!twoFactorEnabled ? (
           <>
             <form action={enableAction} className="flex items-end gap-2">
+              {hasPassword ? (
               <input name="password" type="password" placeholder="●●●●●●●●" className={`${input} grow`} required autoComplete="current-password" />
+            ) : null}
               <button type="submit" className="h-10 rounded-sm border border-border px-4 text-[14px] hover:bg-surface-2">
                 {t("twofaEnable")}
               </button>
@@ -85,8 +92,17 @@ export function SettingsClient({
             {enable.totpUri ? (
               <div className="grid gap-2 rounded-lg border border-primary/40 bg-surface p-4">
                 <p className="text-[13px] text-fg-muted">{t("twofaScan")}</p>
-                <LtrIsland className="block overflow-x-auto rounded-sm border border-border bg-bg px-3 py-2 text-[12px]" as="pre" tabIndex={0}>
-                  {enable.totpUri}
+                {enable.totpQrSvg ? (
+                  <div
+                    role="img"
+                    aria-label={t("twofaScan")}
+                    className="size-[200px] rounded-sm bg-white p-1 justify-self-start"
+                    // SVG produced server-side by the qrcode library from the TOTP URI.
+                    dangerouslySetInnerHTML={{ __html: enable.totpQrSvg }}
+                  />
+                ) : null}
+                <LtrIsland className="block overflow-x-auto rounded-sm border border-border bg-bg px-3 py-2 font-mono text-[12px]" as="pre" tabIndex={0}>
+                  {enable.totpSecret ?? enable.totpUri}
                 </LtrIsland>
                 <form action={verifyAction} className="flex items-end gap-2">
                   <input name="code" inputMode="numeric" pattern="[0-9]*" placeholder={t("twofaCode")} className={`${input} grow font-mono`} required />
@@ -100,7 +116,9 @@ export function SettingsClient({
           </>
         ) : (
           <form action={disableAction} className="flex items-end gap-2">
-            <input name="password" type="password" placeholder="●●●●●●●●" className={`${input} grow`} required autoComplete="current-password" />
+            {hasPassword ? (
+              <input name="password" type="password" placeholder="●●●●●●●●" className={`${input} grow`} required autoComplete="current-password" />
+            ) : null}
             <button type="submit" className="h-10 rounded-sm border border-danger/40 px-4 text-[14px] text-danger hover:bg-danger/10">
               {t("twofaDisable")}
             </button>

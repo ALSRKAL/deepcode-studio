@@ -123,6 +123,9 @@ export const auth = betterAuth({
     twoFactor({
       issuer: "DeepCode Studio",
       backupCodes: { amount: 5 },
+      // Google-only accounts have no password; better-auth still demands it from
+      // every account that has one (shouldRequirePassword).
+      allowPasswordless: true,
     }),
   ],
 });

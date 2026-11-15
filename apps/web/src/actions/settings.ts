@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import QRCode from "qrcode";
 import { auth } from "@/lib/auth";
 import { requireUser } from "@/lib/guards";
 import { db } from "@/lib/db";
@@ -15,7 +16,18 @@ export interface SettingsState {
   error?: string;
   ok?: boolean;
   totpUri?: string;
+  /** QR code of totpUri (SVG from the qrcode library) for authenticator apps. */
+  totpQrSvg?: string;
+  /** Base32 secret for manual entry when the QR cannot be scanned. */
+  totpSecret?: string;
 }
+
+/** Password is optional: accounts that have one must send it (enforced by better-auth). */
+const OptionalPassword = z
+  .string()
+  .max(200)
+  .nullish()
+  .transform((v) => (v ? v : undefined));
 
 export async function updateProfileAction(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
   await requireUser();
@@ -60,15 +72,16 @@ export async function changePasswordAction(_prev: SettingsState, formData: FormD
 
 export async function enableTwoFactorAction(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
   await requireUser();
-  const password = z.string().min(1).max(200).safeParse(formData.get("password"));
+  const password = OptionalPassword.safeParse(formData.get("password"));
   if (!password.success) return { error: "invalid_input" };
   const h = await headers();
   try {
-    await auth.api.enableTwoFactor({ body: { password: password.data }, headers: h });
-    const res = await auth.api.getTOTPURI({ body: { password: password.data }, headers: h });
+    const res = await auth.api.enableTwoFactor({ body: { password: password.data }, headers: h });
     const uri = (res as { totpURI?: string })?.totpURI;
     if (!uri) return { error: "invalid_input" };
-    return { totpUri: uri };
+    const totpQrSvg = await QRCode.toString(uri, { type: "svg", margin: 1, errorCorrectionLevel: "M", width: 200 });
+    const totpSecret = new URL(uri).searchParams.get("secret") ?? undefined;
+    return { totpUri: uri, totpQrSvg, totpSecret };
   } catch {
     return { error: "invalid_credentials" };
   }
@@ -90,7 +103,7 @@ export async function verifyTwoFactorAction(_prev: SettingsState, formData: Form
 
 export async function disableTwoFactorAction(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
   await requireUser();
-  const password = z.string().min(1).max(200).safeParse(formData.get("password"));
+  const password = OptionalPassword.safeParse(formData.get("password"));
   if (!password.success) return { error: "invalid_input" };
   const h = await headers();
   try {
