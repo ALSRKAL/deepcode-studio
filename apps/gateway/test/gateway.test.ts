@@ -188,6 +188,32 @@ describe("streaming and metering", () => {
     expect(text2).toContain('"choices":[]');
   });
 
+  it("drops an optional parameter the upstream model rejects and retries once on the same key", async () => {
+    const t = await createTenant(h);
+    const secret = t.poolSecrets[0]!;
+    h.mock.script(secret, {
+      status: 400,
+      body: JSON.stringify({ error: { code: "unsupported_parameter", message: "Unrecognized request argument supplied: thinking" } }),
+    });
+    const res = await call(h, t, "chat", { stream: false, body: { thinking: { type: "enabled" } } });
+    expect(res.status).toBe(200);
+    const sent = h.mock.requestsFor(secret);
+    expect(sent).toHaveLength(2);
+    expect(sent[0]!.body.thinking).toEqual({ type: "enabled" });
+    expect(sent[1]!.body).not.toHaveProperty("thinking");
+  });
+
+  it("does not drop required fields named in an upstream 400", async () => {
+    const t = await createTenant(h);
+    h.mock.script(t.poolSecrets[0]!, {
+      status: 400,
+      body: JSON.stringify({ error: { message: "Unrecognized request argument supplied: messages" } }),
+    });
+    const res = await call(h, t, "chat", { stream: false });
+    expect(res.status).toBe(400);
+    expect(h.mock.requestsFor(t.poolSecrets[0]!)).toHaveLength(1);
+  });
+
   it("frames correctly when upstream delivers one byte at a time", async () => {
     const t = await createTenant(h);
     h.mock.script(t.poolSecrets[0]!, { byteByByte: true });

@@ -309,6 +309,7 @@ async function dispatch(
         stream: opts.stream,
         maxOutputTokens: opts.maxOutputTokens,
       });
+      for (const field of droppedParams(route.provider.id, route.upstreamModel)) delete prepared.body[field];
       const url = route.provider.baseUrls[adapter.apiType]!.replace(/\/$/, "") +
         adapter.upstreamPath(route.upstreamModel, ctx, opts.stream);
       const headers: Record<string, string> = {
@@ -358,6 +359,18 @@ async function dispatch(
       // Other 4xx: the request itself is wrong. Do not retry, do not forward the raw body.
       const text = await res.body.text().catch(() => "");
       await sel.release();
+      // Clients (the desktop app's reasoning toggle, other SDKs) may send an optional
+      // field this upstream model does not accept ("Unrecognized request argument
+      // supplied: thinking"). Drop that one optional field, remember it for the model,
+      // and resend on the same key instead of failing the user's request.
+      const unsupported = status === 400 ? unsupportedOptionalParam(text) : null;
+      if (unsupported && unsupported in prepared.body && !droppedParams(route.provider.id, route.upstreamModel).has(unsupported)) {
+        rememberDroppedParam(route.provider.id, route.upstreamModel, unsupported);
+        opts.log.info("dropped unsupported optional parameter and retried", { param: unsupported, model: opts.model });
+        exclude.delete(key.id);
+        attempts -= 1;
+        continue;
+      }
       opts.log.info("upstream rejected request", { httpStatus: status, poolKeyId: key.id });
       throw new GatewayHttpError("bad_request", sanitizeUpstreamMessage(text, deps.secrets), {
         httpStatus: [400, 404, 413, 422].includes(status) ? status : 400,
@@ -369,6 +382,46 @@ async function dispatch(
   throw new GatewayHttpError("upstream_unavailable", undefined, {
     retryAfterSec: soonestCooldownMs > 0 ? soonestCooldownMs / 1000 : 5,
   });
+}
+
+/** Optional top-level request fields a gateway may drop when an upstream model rejects them. */
+const DROPPABLE_OPTIONAL_PARAMS = new Set([
+  "thinking",
+  "reasoning",
+  "reasoning_effort",
+  "enable_thinking",
+  "thinking_budget",
+  "chat_template_kwargs",
+  "parallel_tool_calls",
+  "top_k",
+  "store",
+  "metadata",
+  "service_tier",
+  "verbosity",
+]);
+const droppedByModel = new Map<string, Set<string>>();
+
+function droppedParams(providerId: string, upstreamModel: string): ReadonlySet<string> {
+  return droppedByModel.get(`${providerId}/${upstreamModel}`) ?? new Set();
+}
+
+function rememberDroppedParam(providerId: string, upstreamModel: string, param: string): void {
+  const k = `${providerId}/${upstreamModel}`;
+  const set = droppedByModel.get(k) ?? new Set<string>();
+  set.add(param);
+  droppedByModel.set(k, set);
+}
+
+/** The optional parameter an upstream 400 names as unsupported, if it is one we may drop. */
+export function unsupportedOptionalParam(body: string): string | null {
+  const m =
+    /Unrecognized request argument supplied:\s*['"]?([A-Za-z_]+)/i.exec(body) ??
+    /Unknown parameter:\s*['"]?([A-Za-z_]+)/i.exec(body) ??
+    /unexpected keyword argument ['"]([A-Za-z_]+)['"]/i.exec(body) ??
+    /['"]?([A-Za-z_]+)['"]? is not (?:supported|permitted|allowed)/i.exec(body) ??
+    /Extra inputs are not permitted[^"]*?['"]([A-Za-z_]+)['"]/i.exec(body);
+  const param = m?.[1];
+  return param && DROPPABLE_OPTIONAL_PARAMS.has(param) ? param : null;
 }
 
 function forwardedHeaders(ctx: RequestContext): Record<string, string> {
