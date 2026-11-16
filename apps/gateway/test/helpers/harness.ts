@@ -60,6 +60,7 @@ export async function startHarness(overrides: Partial<GatewayConfig> = {}): Prom
     catalogReloadIntervalMs: 60_000,
     quotaPollIntervalMs: 900_000,
     quotaAlertWebhookUrl: null,
+    fastModeTiers: ["team"],
     snapshotTtlSec: 30,
     ...overrides,
   };

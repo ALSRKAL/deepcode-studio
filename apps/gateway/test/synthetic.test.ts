@@ -207,6 +207,15 @@ describe("Synthetic: units", () => {
     expect(allCached).toBe(Math.round(fresh * 0.25));
   });
 
+  it("trial and plan layout only reference real models; expensive models only on higher plans", async () => {
+    const { SYNTHETIC_PLAN_LAYOUT, TRIAL_PLAN } = await import("@deepcode/db");
+    const ids = new Set(SYNTHETIC_MODELS.map((m) => m.id));
+    for (const p of [TRIAL_PLAN, ...Object.values(SYNTHETIC_PLAN_LAYOUT)]) for (const m of p.allowedModels) expect(ids.has(m)).toBe(true);
+    expect(SYNTHETIC_PLAN_LAYOUT["starter-monthly"]!.allowedModels).not.toContain("deepcode-architect");
+    expect(SYNTHETIC_PLAN_LAYOUT["pro-monthly"]!.allowedModels).not.toContain("deepcode-architect");
+    expect(SYNTHETIC_PLAN_LAYOUT["team-monthly"]!.allowedModels).toContain("deepcode-architect");
+  });
+
   it("background models are free and every model has a price", () => {
     for (const m of SYNTHETIC_MODELS) {
       const [input, output] = syntheticCredits(m);

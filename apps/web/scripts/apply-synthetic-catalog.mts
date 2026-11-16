@@ -22,8 +22,10 @@ import {
   upstreamProviders,
   users,
   SYNTHETIC_MODELS,
-  SYNTHETIC_PLAN_MODELS,
+  SYNTHETIC_PLAN_LAYOUT,
   SYNTHETIC_PROVIDER,
+  SYNTHETIC_UNAVAILABLE_MODELS,
+  TRIAL_PLAN,
   syntheticCredits,
 } from "@deepcode/db";
 import { db } from "../src/lib/db";
@@ -80,15 +82,15 @@ for (const m of SYNTHETIC_MODELS) {
     capabilities: { tools: true, reasoning: true, vision: m.vision, structuredOutput: true },
     isFree: m.usd[0] === 0 && m.usd[1] === 0,
     trainsOnData: false,
-    status: "active" as const,
-    note: null,
+    status: (SYNTHETIC_UNAVAILABLE_MODELS[m.id] ? "hidden" : "active") as "active" | "hidden",
+    note: SYNTHETIC_UNAVAILABLE_MODELS[m.id] ?? null,
     badge: m.badge ?? null,
     sortOrder: m.sortOrder,
     sourceProviderId: SYNTHETIC_PROVIDER.id,
   };
   const cur = latest.get(m.id);
   const samePrice = cur && Number(cur.inputPerMTok) === input && Number(cur.outputPerMTok) === output && Number(cur.cachedInputPerMTok) === cached;
-  say(`model ${m.id.padEnd(20)} → ${m.upstreamModel.padEnd(26)} credits/MTok ${input}/${output}/${cached}${samePrice ? " (price unchanged)" : ""}`);
+  say(`model ${m.id.padEnd(20)} → ${m.upstreamModel.padEnd(26)} credits/MTok ${input}/${output}/${cached}${samePrice ? " (price unchanged)" : ""}${SYNTHETIC_UNAVAILABLE_MODELS[m.id] ? " [hidden: " + SYNTHETIC_UNAVAILABLE_MODELS[m.id] + "]" : ""}`);
   if (!apply) continue;
   await h
     .insert(catalogModels)
@@ -117,17 +119,29 @@ if (apply && others.length > 0) {
     .where(inArray(catalogModels.id, others.map((o) => o.id)));
 }
 
-// 4. Plans
-for (const [planId, models] of Object.entries(SYNTHETIC_PLAN_MODELS)) {
+// 4. Plans: free trial (created if missing) and the paid layout.
+const [trial] = await h.select().from(plans).where(eq(plans.id, TRIAL_PLAN.id));
+say(`plan ${TRIAL_PLAN.id}: ${trial ? "update" : "create"} — ${TRIAL_PLAN.creditsPerPeriod} credits, models ${TRIAL_PLAN.allowedModels.join(", ")}`);
+if (apply) {
+  await h
+    .insert(plans)
+    .values(TRIAL_PLAN)
+    .onConflictDoUpdate({ target: plans.id, set: { ...TRIAL_PLAN, updatedAt: new Date() } });
+  await audit(h, { actorId: actor.id, action: "plan.upsert", targetType: "plan", targetId: TRIAL_PLAN.id, metadata: { ...TRIAL_PLAN } });
+}
+for (const [planId, layout] of Object.entries(SYNTHETIC_PLAN_LAYOUT)) {
   const [plan] = await h.select().from(plans).where(eq(plans.id, planId));
   if (!plan) {
     say(`plan ${planId}: not found, skipped`);
     continue;
   }
-  say(`plan ${planId}: models ${plan.allowedModels.length} → ${models.join(", ")}`);
+  say(`plan ${planId}: ₹${plan.priceCents / 100} → ₹${layout.priceCents / 100}, credits ${plan.creditsPerPeriod} → ${layout.creditsPerPeriod}, rpm ${layout.rpmLimit}, devices ${layout.maxDevices}, models ${layout.allowedModels.join(", ")}`);
   if (!apply) continue;
-  await h.update(plans).set({ allowedModels: models, updatedAt: new Date() }).where(eq(plans.id, plan.id));
-  await audit(h, { actorId: actor.id, action: "plan.models.set", targetType: "plan", targetId: plan.id, metadata: { models, reason: "synthetic" } });
+  await h
+    .update(plans)
+    .set({ ...layout, currency: "INR", isPublic: true, updatedAt: new Date() })
+    .where(eq(plans.id, plan.id));
+  await audit(h, { actorId: actor.id, action: "plan.update", targetType: "plan", targetId: plan.id, metadata: { ...layout, reason: "synthetic" } });
 }
 await audit(h, { actorId: actor.id, action: "upstream.switch", targetType: "provider", targetId: SYNTHETIC_PROVIDER.id, metadata: { applied: apply } }).catch(() => {});
 console.log(apply ? "applied — restart or reload the gateway to pick it up" : "dry run (pass --apply to write)");

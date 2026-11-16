@@ -79,7 +79,9 @@
     "transparencyTitle": "How credits are calculated",
     "transparencyBody": "Each model has a credit price per million tokens (see the table): fast models cost fewer credits, the strongest models more. When credits run out, requests stop and nothing is auto-charged.",
     "perModelPrices": "Model price table",
-    "startFree": "Start free"
+    "startFree": "Start free",
+    "trialOfferTitle": "Limited-time offer:",
+    "trialOfferBody": "every new account gets 24 hours free on DeepCode Default and Lite. No card needed; pick a plan when the trial ends."
   },
   "download": {
     "title": "Download DeepCode Studio",
@@ -136,7 +138,8 @@
     "twoFactorCode": "Verification code",
     "twoFactorTrust": "Trust this device for 30 days",
     "twoFactorSubmit": "Verify and sign in",
-    "twoFactorBack": "Back to sign in"
+    "twoFactorBack": "Back to sign in",
+    "trialNote": "Includes a free 24-hour trial — limited-time offer."
   },
   "desktop": {
     "consentTitle": "Connect the app to your account",

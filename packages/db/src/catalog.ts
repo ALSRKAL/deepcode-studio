@@ -313,15 +313,75 @@ export function syntheticCredits(model: BrandedModel): [number, number, number] 
   return [usdPerMTokToCredits(input), usdPerMTokToCredits(output), usdPerMTokToCredits(input * 0.25)];
 }
 
-const syntheticIds = (tiers: Array<BrandedModel["minTier"]>) =>
-  SYNTHETIC_MODELS.filter((m) => tiers.includes(m.minTier)).map((m) => m.id);
+/**
+ * Plans on Synthetic (owner decision 2026-11-16), sized from a measured Synthetic Go
+ * key: $9/month buys $2.10/week ≈ $9.1/month of usage at the discounted rates
+ * (measured 2026-11-16 with four controlled requests, all → $2.10/week), i.e.
+ * ≈ 9.1M credits of upstream draw per key per month.
+ *
+ * Credits are charged at exactly Synthetic's discounted rate, except cached input
+ * (we charge 25% of input; Synthetic draws 5–10%), so a plan's credits are also the
+ * WORST-CASE upstream draw. Prices keep a margin even if every credit is spent
+ * without caching; typical coding use (≈40% of credits, heavy prompt caching) costs
+ * a fraction of that. Expensive models only appear on the plans that can carry them.
+ *
+ * Go does NOT include `fast:` or `infinite:` (Synthetic answers 400/402), so
+ * deepcode-background is hidden and fast mode is off until the key is on Big.
+ */
+export const SYNTHETIC_GO_KEY = { usdPerMonth: 9, weeklyDrawCredits: 2_100_000, monthlyDrawCredits: 9_100_000 };
 
-/** Hosted plan layout on Synthetic: which branded models each plan offers. */
-export const SYNTHETIC_PLAN_MODELS: Record<string, string[]> = {
-  "starter-monthly": syntheticIds(["starter"]),
-  "pro-monthly": syntheticIds(["starter", "pro"]),
-  "team-monthly": syntheticIds(["starter", "pro"]),
+export interface PlanLayout {
+  priceCents: number;
+  creditsPerPeriod: number;
+  rpmLimit: number;
+  maxConcurrentStreams: number;
+  maxDevices: number;
+  maxOutputTokens: number;
+  allowedModels: string[];
+}
+
+const TRIAL_MODELS = ["deepcode-default", "deepcode-lite"];
+const STARTER_MODELS = ["deepcode-default", "deepcode-lite", "deepcode-general", "deepcode-fast-agent"];
+const PRO_MODELS = [...STARTER_MODELS, "deepcode-mid", "deepcode-coder-pro"];
+const TEAM_MODELS = [...PRO_MODELS, "deepcode-architect"];
+
+/** INR prices (paise). */
+export const SYNTHETIC_PLAN_LAYOUT: Record<string, PlanLayout> = {
+  "starter-monthly": { priceCents: 29_900, creditsPerPeriod: 2_500_000, rpmLimit: 20, maxConcurrentStreams: 2, maxDevices: 2, maxOutputTokens: 32_000, allowedModels: STARTER_MODELS },
+  "pro-monthly": { priceCents: 79_900, creditsPerPeriod: 7_000_000, rpmLimit: 40, maxConcurrentStreams: 4, maxDevices: 3, maxOutputTokens: 64_000, allowedModels: PRO_MODELS },
+  "team-monthly": { priceCents: 199_900, creditsPerPeriod: 20_000_000, rpmLimit: 60, maxConcurrentStreams: 8, maxDevices: 10, maxOutputTokens: 64_000, allowedModels: TEAM_MODELS },
 };
 
-/** Plans whose subscribers may use the `fast:` prefix (2x credits). */
-export const FAST_MODE_TIERS = new Set(["team"]);
+/** Which branded models each plan offers (kept for callers that only need the lists). */
+export const SYNTHETIC_PLAN_MODELS: Record<string, string[]> = Object.fromEntries(
+  Object.entries(SYNTHETIC_PLAN_LAYOUT).map(([id, p]) => [id, p.allowedModels]),
+);
+
+/**
+ * Free trial: every new account gets 24 hours on the cheapest high-quota models,
+ * then must subscribe. 150k credits ≈ 100 typical DeepSeek agent requests; the
+ * worst-case cost per trial is $0.15 of upstream draw.
+ */
+export const TRIAL_HOURS = 24;
+export const TRIAL_PLAN = {
+  id: "trial",
+  tier: "free" as const,
+  nameEn: "Free trial",
+  nameAr: "تجربة مجانية",
+  priceCents: 0,
+  currency: "INR",
+  creditsPerPeriod: 150_000,
+  rpmLimit: 10,
+  maxConcurrentStreams: 1,
+  maxKeys: 1,
+  maxDevices: 1,
+  maxOutputTokens: 8_192,
+  allowedModels: TRIAL_MODELS,
+  isPublic: false,
+  sortOrder: 0,
+};
+
+/** Branded models hidden because the current Synthetic plan cannot serve them. */
+export const SYNTHETIC_UNAVAILABLE_MODELS: Record<string, string> = {
+  "deepcode-background": "Needs Synthetic Big (infinite mode); the Go key answers 402.",
+};

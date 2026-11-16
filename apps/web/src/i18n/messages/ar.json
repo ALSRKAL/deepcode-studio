@@ -79,7 +79,9 @@
     "transparencyTitle": "كيف تُحسب الكريدتس",
     "transparencyBody": "لكل نموذج سعر بالكريدت لكل مليون توكن (انظر الجدول): النماذج السريعة تستهلك كريدت أقل، والأقوى تستهلك أكثر. عند نفاد الكريدت تتوقف الطلبات ولا يُخصم شيء تلقائياً.",
     "perModelPrices": "جدول أسعار النماذج",
-    "startFree": "ابدأ مجاناً"
+    "startFree": "ابدأ مجاناً",
+    "trialOfferTitle": "عرض لفترة محدودة:",
+    "trialOfferBody": "كل حساب جديد يحصل على 24 ساعة مجاناً على DeepCode Default وLite. بدون بطاقة؛ اختر خطة عند انتهاء التجربة."
   },
   "download": {
     "title": "تنزيل DeepCode Studio",
@@ -136,7 +138,8 @@
     "twoFactorCode": "رمز التحقق",
     "twoFactorTrust": "الوثوق بهذا الجهاز لمدة 30 يوماً",
     "twoFactorSubmit": "تحقق ودخول",
-    "twoFactorBack": "العودة لتسجيل الدخول"
+    "twoFactorBack": "العودة لتسجيل الدخول",
+    "trialNote": "يشمل تجربة مجانية 24 ساعة — عرض لفترة محدودة."
   },
   "desktop": {
     "consentTitle": "ربط التطبيق بحسابك",

@@ -14,6 +14,11 @@ const EnvSchema = z.object({
   APP_URL: z.url().default("http://localhost:3210"),
   GATEWAY_URL: z.url().default("http://127.0.0.1:8790"),
   BILLING_PROVIDER: z.enum(["mock", "stripe", "upi"]).default("mock"),
+  /** 24-hour free trial for new accounts (limited-time offer); "false" turns it off. */
+  TRIAL_ENABLED: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
   /**
    * UPI QR payments with manual approval (owner decision 2026-11-15). The payee
    * VPA (e.g. name@ybl) and display name go into the QR; amounts come from plans.

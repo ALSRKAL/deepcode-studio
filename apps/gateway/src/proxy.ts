@@ -27,7 +27,6 @@ import type { Limits, RateResult } from "./limits.js";
 import type { Logger, SecretRegistry } from "./logger.js";
 import type { Balance, Settlement, SettlementRecord } from "./metering.js";
 import type { PoolKey, PoolManager } from "./pool.js";
-import { FAST_MODE_TIERS } from "@deepcode/db";
 import type { SyncService } from "./sync.js";
 import { aggregateChatCompletionStream, FAST_MODE_MULTIPLIER, FAST_PREFIX, isInfiniteModel } from "./synthetic.js";
 import { SseFramer, type PreparedBody, type ProtocolAdapter, type RequestContext } from "./protocols/index.js";
@@ -122,7 +121,7 @@ export async function handleProxy(
     // `fast:<model>`: Synthetic fast mode (2x the draw), only for plans that include it.
     const fast = requestedModel.startsWith(FAST_PREFIX);
     const model = fast ? requestedModel.slice(FAST_PREFIX.length) : requestedModel;
-    if (fast && !FAST_MODE_TIERS.has(sub.plan.tier)) {
+    if (fast && !deps.config.fastModeTiers.includes(sub.plan.tier)) {
       throw new GatewayHttpError("model_not_allowed", "Fast mode is not included in your plan.");
     }
     if (!sub.plan.allowedModels.includes(model)) throw new GatewayHttpError("model_not_allowed");

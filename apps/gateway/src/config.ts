@@ -31,6 +31,8 @@ const EnvSchema = z.object({
   CATALOG_RELOAD_INTERVAL_MS: z.coerce.number().int().min(5_000).default(60_000),
   QUOTA_POLL_INTERVAL_MS: z.coerce.number().int().min(60_000).default(900_000),
   QUOTA_ALERT_WEBHOOK_URL: z.string().url().optional(),
+  /** Plan tiers allowed to use Synthetic `fast:` (needs a Synthetic plan with Fast mode), e.g. "team". */
+  FAST_MODE_TIERS: z.string().default(""),
 });
 
 export interface GatewayConfig {
@@ -61,6 +63,8 @@ export interface GatewayConfig {
   quotaPollIntervalMs: number;
   /** Optional webhook (Slack/Discord/any JSON) for low-quota and renewal alerts. */
   quotaAlertWebhookUrl: string | null;
+  /** Plan tiers that may use the `fast:` prefix; empty = fast mode off. */
+  fastModeTiers: string[];
   /** Auth snapshot TTL. */
   snapshotTtlSec: number;
 }
@@ -98,5 +102,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     catalogReloadIntervalMs: e.CATALOG_RELOAD_INTERVAL_MS,
     quotaPollIntervalMs: e.QUOTA_POLL_INTERVAL_MS,
     quotaAlertWebhookUrl: e.QUOTA_ALERT_WEBHOOK_URL ?? null,
+    fastModeTiers: e.FAST_MODE_TIERS.split(",").map((t) => t.trim()).filter(Boolean),
   };
 }

@@ -7,6 +7,7 @@ import { authAccounts, authSessions, authTwoFactor, authVerifications, userRole,
 import { db } from "./db";
 import { env } from "./env";
 import { sendMail } from "./mail";
+import { startTrialForNewUser } from "./trial";
 
 /**
  * Better Auth's view of the domain `users` table (docs/plan/03 §4): its user model
@@ -83,6 +84,18 @@ export const auth = betterAuth({
       role: { type: "string", defaultValue: "user", input: false },
       status: { type: "string", defaultValue: "active", input: false },
       locale: { type: "string", defaultValue: "ar", input: false },
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        // Every new account (email or Google) starts a 24-hour free trial.
+        after: async (user) => {
+          await startTrialForNewUser(db().db, user.id).catch((err) =>
+            console.error("[trial] could not start the free trial", err instanceof Error ? err.message : err),
+          );
+        },
+      },
     },
   },
   session: {

@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { and, eq } from "drizzle-orm";
 import { plans } from "@deepcode/db";
 import { db } from "@/lib/db";
+import { env } from "@/lib/env";
 import { currentUser } from "@/lib/guards";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -25,6 +26,11 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
         <SectionTitle as="h1" sub={t("sub")}>
           {t("title")}
         </SectionTitle>
+        {env.TRIAL_ENABLED ? (
+          <p className="mx-auto mt-6 max-w-2xl rounded-md border border-primary/30 bg-primary/5 px-4 py-3 text-center text-[14px]">
+            <strong className="font-semibold">{t("trialOfferTitle")}</strong> {t("trialOfferBody")}
+          </p>
+        ) : null}
         <PricingCards plans={publicPlans} locale={locale} signedIn={user !== null} />
         <Card className="mt-10 p-6 max-w-3xl">
           <p className="font-medium">{t("transparencyTitle")}</p>
