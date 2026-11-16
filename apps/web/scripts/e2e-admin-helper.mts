@@ -7,9 +7,10 @@
  *   approve <email> <state> <challenge> <device>   consent screen "Allow" → prints the one-time code
  *   plan <email> <planId>                      admin assigns a plan
  *   exhaust <email> | topup <email>            admin adjusts credits to 0 / +1M
+ *   expire <email>                             the live subscription (e.g. the free trial) ends now
  *   devices <email>                            prints the device count
  */
-import { eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { users, subscriptions, devices } from "@deepcode/db";
 import { db } from "../src/lib/db";
 import { createDesktopAuthCode } from "../src/lib/desktopAuth";
@@ -67,11 +68,24 @@ switch (cmd) {
   case "exhaust":
   case "topup": {
     const id = await userId(email!);
-    const [sub] = await handle.select().from(subscriptions).where(eq(subscriptions.userId, id));
+    // The live subscription (a new account also has its ended/canceled trial row).
+    const [sub] = await handle
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, id))
+      .orderBy(desc(sql`(${subscriptions.status} in ('trialing','active','past_due'))`), desc(subscriptions.createdAt))
+      .limit(1);
     const delta = cmd === "topup" ? 1_000_000 : -(Number(sub!.creditsLimit) - Number(sub!.creditsUsed));
     const r = await adjustCredits(handle, { id: await adminId() }, { subscriptionId: sub!.id, deltaCredits: delta, reason: `e2e ${cmd}` });
     await invalidateGateway({ userIds: [id] });
     console.log(JSON.stringify(r));
+    break;
+  }
+  case "expire": {
+    const id = await userId(email!);
+    await handle.update(subscriptions).set({ expiresAt: new Date(Date.now() - 60_000) }).where(eq(subscriptions.userId, id));
+    await invalidateGateway({ userIds: [id] });
+    console.log("expired");
     break;
   }
   case "devices": {
