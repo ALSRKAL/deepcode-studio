@@ -81,11 +81,11 @@ export function SettingsClient({
         <p className="font-medium">{t("twofa")}</p>
         {!twoFactorEnabled ? (
           <>
-            <form action={enableAction} className="flex items-end gap-2">
+            <form action={enableAction} className="flex flex-wrap items-end gap-2">
               {hasPassword ? (
-              <input name="password" type="password" placeholder="●●●●●●●●" className={`${input} grow`} required autoComplete="current-password" />
+              <input name="password" type="password" placeholder="●●●●●●●●" className={`${input} min-w-0 grow basis-48`} required autoComplete="current-password" />
             ) : null}
-              <button type="submit" className="h-10 rounded-sm border border-border px-4 text-[14px] hover:bg-surface-2">
+              <button type="submit" className="h-10 whitespace-nowrap rounded-sm border border-border px-4 text-[14px] hover:bg-surface-2">
                 {t("twofaEnable")}
               </button>
             </form>
@@ -104,7 +104,7 @@ export function SettingsClient({
                 <LtrIsland className="block overflow-x-auto rounded-sm border border-border bg-bg px-3 py-2 font-mono text-[12px]" as="pre" tabIndex={0}>
                   {enable.totpSecret ?? enable.totpUri}
                 </LtrIsland>
-                <form action={verifyAction} className="flex items-end gap-2">
+                <form action={verifyAction} className="flex flex-wrap items-end gap-2">
                   <input name="code" inputMode="numeric" pattern="[0-9]*" placeholder={t("twofaCode")} className={`${input} grow font-mono`} required />
                   <button type="submit" className="h-10 rounded-sm bg-primary px-4 text-[14px] text-primary-fg font-medium hover:bg-primary-hover">
                     {c("confirm")}
@@ -115,9 +115,9 @@ export function SettingsClient({
             <Feedback state={verify.ok ? verify : enable} />
           </>
         ) : (
-          <form action={disableAction} className="flex items-end gap-2">
+          <form action={disableAction} className="flex flex-wrap items-end gap-2">
             {hasPassword ? (
-              <input name="password" type="password" placeholder="●●●●●●●●" className={`${input} grow`} required autoComplete="current-password" />
+              <input name="password" type="password" placeholder="●●●●●●●●" className={`${input} min-w-0 grow basis-48`} required autoComplete="current-password" />
             ) : null}
             <button type="submit" className="h-10 rounded-sm border border-danger/40 px-4 text-[14px] text-danger hover:bg-danger/10">
               {t("twofaDisable")}

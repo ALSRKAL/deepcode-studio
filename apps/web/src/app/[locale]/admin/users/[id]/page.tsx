@@ -13,7 +13,7 @@ import {
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/guards";
 import { Card, Num, Badge } from "@/components/ui/primitives";
-import { AdjustCreditsForm, AssignPlanForm, RevokeAllKeysButton } from "@/components/admin-client";
+import { AdjustCreditsForm, AssignPlanForm, RevokeAllKeysButton, DeleteUserForm } from "@/components/admin-client";
 import { LtrIsland } from "@/components/ltr-island";
 
 /** User detail (docs/plan/03 §6.2): subscription, credit adjustments, keys, devices. */
@@ -86,6 +86,7 @@ export default async function AdminUserDetailPage({
             {sub ? <AdjustCreditsForm subscriptionId={sub.s.id} /> : null}
             <AssignPlanForm userId={id} planIds={planIds} />
             <RevokeAllKeysButton userId={id} />
+            {user.role !== "admin" ? <DeleteUserForm userId={id} email={user.email} /> : null}
           </div>
         </Card>
 

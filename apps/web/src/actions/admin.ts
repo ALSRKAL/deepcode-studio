@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireAdmin, clientIp } from "@/lib/guards";
+import { requireAdmin, clientIp, currentLocale } from "@/lib/guards";
 import {
   addPoolKey,
   setPoolKeyStatus,
@@ -10,7 +10,10 @@ import {
   setUserStatus,
   assignPlan,
   revokeAllKeys,
+  adminDeleteUser,
 } from "@/lib/adminActions";
+import { billingProvider } from "@/lib/billing";
+import { redirect } from "next/navigation";
 import { approveUpiPayment, rejectUpiPayment } from "@/lib/billing/upi";
 import { utrSeenInSmmDeposits } from "@/lib/firebaseAdmin";
 import { audit } from "@/lib/audit";
@@ -98,6 +101,31 @@ export async function revokeAllKeysAction(_prev: AdminActionState, formData: For
   revalidatePath("/admin/users");
   if (!outcome.ok) return { error: outcome.code };
   return { ok: true };
+}
+
+/** Delete a user's account so they can sign up again as a new user. */
+export async function deleteUserAction(_prev: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const admin = await adminActor();
+  const outcome = await adminDeleteUser(
+    db().db,
+    admin,
+    { userId: String(formData.get("userId") ?? ""), confirmEmail: String(formData.get("confirmEmail") ?? "") },
+    {
+      cancelProviderSubscription: async (sub) => {
+        const provider = billingProvider();
+        if (provider.id !== sub.billingProvider) {
+          throw new Error(`subscription belongs to ${sub.billingProvider}, configured provider is ${provider.id}`);
+        }
+        await provider.cancel(sub.providerSubscriptionId, { atPeriodEnd: false });
+      },
+    },
+  );
+  if (!outcome.ok) return { error: outcome.code };
+  revalidatePath("/admin/users");
+  // The form says which language the admin is using; the header can fall back to Arabic here.
+  const formLocale = formData.get("locale");
+  const locale = formLocale === "en" || formLocale === "ar" ? formLocale : await currentLocale();
+  redirect(`/${locale}/admin/users?deleted=1`);
 }
 
 /** Web fallback for the phone app: approve/reject a submitted UPI payment. */

@@ -5,6 +5,9 @@ import { Card, Progress, Num, EmptyState, Badge } from "@/components/ui/primitiv
 import { LineChart, Sparkline } from "@/components/charts";
 import { LtrIsland } from "@/components/ltr-island";
 import { ButtonLink } from "@/components/ui/button";
+import { eq, count } from "drizzle-orm";
+import { devices } from "@deepcode/db";
+import { db } from "@/lib/db";
 
 /** Dashboard overview (docs/plan/03 §5): the IDE HUD, large, plus banners. */
 export default async function DashboardOverviewPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -14,6 +17,8 @@ export default async function DashboardOverviewPage({ params }: { params: Promis
   const status = await getSubscriptionStatus(user.id);
   const usage7 = await getDailyUsage(user.id, 7);
   const recent = await getRecentRequests(user.id, 5);
+  const [{ n: deviceCount } = { n: 0 }] = await db().db.select({ n: count() }).from(devices).where(eq(devices.userId, user.id));
+  const onTrial = status?.plan.id === "trial";
 
   // Daily totals for the sparkline.
   const byDay = new Map<string, number>();
@@ -41,20 +46,40 @@ export default async function DashboardOverviewPage({ params }: { params: Promis
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <h1 className="text-scale-lg font-semibold">{t("title")}</h1>
 
       {banner !== "none" ? (
         <div role="status" className={`rounded-lg border p-4 text-[14px] ${bannerTones[banner]}`}>
-          {t(bannerKey[banner]!)}
-          {banner === "noSubscription" || banner === "expired" || banner === "paymentFailed" ? (
+          {/* A trial is not a subscription: say what ends and what to do next. */}
+          {onTrial && (banner === "expiringSoon" || banner === "expired") ? t(banner === "expired" ? "trialEnded" : "trialEnding") : t(bannerKey[banner]!)}
+          {banner === "noSubscription" || banner === "expired" || banner === "paymentFailed" || onTrial ? (
             <div className="mt-3">
-              <ButtonLink href={`/${locale}/dashboard/billing`} size="sm" variant="secondary">
-                {t("billing")}
+              <ButtonLink href={`/${locale}/pricing`} size="sm" variant={onTrial ? "primary" : "secondary"}>
+                {onTrial ? t("choosePlan") : t("billing")}
               </ButtonLink>
             </div>
           ) : null}
         </div>
+      ) : null}
+
+      {deviceCount === 0 ? (
+        <Card className="p-6" data-testid="get-started">
+          <p className="font-semibold">{t("getStartedTitle")}</p>
+          <ol className="mt-3 grid gap-3 text-[14px] sm:grid-cols-3">
+            {(["getStarted1", "getStarted2", "getStarted3"] as const).map((k, i) => (
+              <li key={k} className="flex gap-3">
+                <span className="grid size-6 shrink-0 place-items-center rounded-full border border-primary/40 text-[13px] text-primary tabular">{i + 1}</span>
+                <span className="text-fg-muted">{t(k)}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-4">
+            <ButtonLink href={`/${locale}/download`} size="sm">
+              {t("downloadApp")}
+            </ButtonLink>
+          </div>
+        </Card>
       ) : null}
 
       {status ? (
@@ -96,11 +121,15 @@ export default async function DashboardOverviewPage({ params }: { params: Promis
         </Card>
         <Card className="p-6">
           <p className="text-fg-subtle text-[13px]">{t("last7")}</p>
-          <LineChart series={spark.map((v, i) => ({ label: `d${i}`, value: v }))} />
+          {spark.some((v) => v > 0) ? (
+            <LineChart series={spark.map((v, i) => ({ label: `d${i}`, value: v }))} />
+          ) : (
+            <p className="mt-6 text-[14px] text-fg-muted">{t("noUsageYet")}</p>
+          )}
         </Card>
       </div>
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-x-auto">
         <p className="px-4 pt-4 text-fg-subtle text-[13px]">{t("lastRequests")}</p>
         {recent.length === 0 ? (
           <div className="p-6">

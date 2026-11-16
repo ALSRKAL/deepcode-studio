@@ -8,6 +8,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { PricingCards } from "@/components/pricing-cards";
 import { Card, SectionTitle } from "@/components/ui/primitives";
+import { TrialOffer } from "@/components/trial-offer";
 
 export default async function PricingPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -27,11 +28,11 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
           {t("title")}
         </SectionTitle>
         {env.TRIAL_ENABLED ? (
-          <p className="mx-auto mt-6 max-w-2xl rounded-md border border-primary/30 bg-primary/5 px-4 py-3 text-center text-[14px]">
-            <strong className="font-semibold">{t("trialOfferTitle")}</strong> {t("trialOfferBody")}
-          </p>
+          <TrialOffer />
         ) : null}
-        <PricingCards plans={publicPlans} locale={locale} signedIn={user !== null} />
+        <div className="mt-8">
+          <PricingCards plans={publicPlans} locale={locale} signedIn={user !== null} />
+        </div>
         <Card className="mt-10 p-6 max-w-3xl">
           <p className="font-medium">{t("transparencyTitle")}</p>
           <p className="mt-2 text-[14px] leading-7 text-fg-muted">{t("transparencyBody")}</p>

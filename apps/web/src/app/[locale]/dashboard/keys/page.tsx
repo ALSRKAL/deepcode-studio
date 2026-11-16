@@ -24,10 +24,10 @@ export default async function KeysPage({ params }: { params: Promise<{ locale: s
   const maxKeys = live?.plan.maxKeys ?? 3;
 
   const gatewayUrl = (process.env.NEXT_PUBLIC_GATEWAY_URL ?? process.env.GATEWAY_URL ?? "http://127.0.0.1:8790").replace(/\/$/, "");
-  const snippet = `curl ${gatewayUrl}/v1/chat/completions \\\n  -H "Authorization: Bearer sk-dc-…" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"glm-5.3-flash","messages":[{"role":"user","content":"hello"}]}'`;
+  const snippet = `curl ${gatewayUrl}/v1/chat/completions \\\n  -H "Authorization: Bearer sk-dc-…" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"deepcode-default","messages":[{"role":"user","content":"hello"}]}'`;
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <h1 className="text-scale-lg font-semibold">{t("title")}</h1>
       <Card className="p-6">
         <p className="mb-3 text-fg-subtle text-[13px]">
@@ -36,7 +36,7 @@ export default async function KeysPage({ params }: { params: Promise<{ locale: s
         <CreateKeyForm disabled={active.length >= maxKeys} />
       </Card>
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-x-auto">
         <table className="w-full text-[14px]">
           <thead className="text-fg-subtle text-[13px]">
             <tr>

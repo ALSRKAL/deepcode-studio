@@ -39,7 +39,7 @@ export default async function UsagePage({
   const outSeries = days.map(([label, v]) => ({ label, value: v.outTokens }));
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <div className="flex items-baseline justify-between">
         <h1 className="text-scale-lg font-semibold">{t("title")}</h1>
         <nav className="flex gap-1" aria-label="range">
@@ -106,7 +106,7 @@ export default async function UsagePage({
         )}
       </Card>
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-x-auto">
         <div className="flex items-center justify-between px-4 pt-4">
           <p className="text-fg-subtle text-[13px]">
             {t("history")} — <Num>{total.toLocaleString("en-US")}</Num>

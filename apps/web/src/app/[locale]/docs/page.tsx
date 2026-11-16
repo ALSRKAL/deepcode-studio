@@ -29,7 +29,7 @@ export default async function DocsPage({ params }: { params: Promise<{ locale: s
 curl ${gatewayUrl}/v1/chat/completions \\
   -H "Authorization: Bearer sk-dc-…" \\
   -H "Content-Type: application/json" \\
-  -d '{"model":"glm-5.3-flash","stream":true,
+  -d '{"model":"deepcode-default","stream":true,
        "messages":[{"role":"user","content":"hello"}]}'`}
             </LtrIsland>
           </Card>

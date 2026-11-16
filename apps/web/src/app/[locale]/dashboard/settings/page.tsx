@@ -25,7 +25,7 @@ export default async function SettingsPage({
     .limit(1);
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <h1 className="text-scale-lg font-semibold">{t("title")}</h1>
       {sp.twofa === "required" && user.role === "admin" ? (
         <p role="alert" className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-[13px] text-warning">

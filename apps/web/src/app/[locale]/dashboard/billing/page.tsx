@@ -34,7 +34,7 @@ export default async function BillingPage({
   const canceled = status?.status === "canceled";
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <h1 className="text-scale-lg font-semibold">{t("title")}</h1>
       {env.BILLING_PROVIDER === "upi" ? null : (
         <p role="status" className="rounded-lg border border-primary/40 bg-primary/5 p-3 text-[13px] text-fg-muted">
@@ -84,7 +84,7 @@ export default async function BillingPage({
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             <PortalButton />
-            {!canceled ? <CancelButton atPeriodEnd /> : null}
+            {!canceled && status?.plan.id !== "trial" ? <CancelButton atPeriodEnd /> : null}
           </div>
         </Card>
       ) : null}

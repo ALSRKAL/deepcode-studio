@@ -81,7 +81,7 @@
     "perModelPrices": "Model price table",
     "startFree": "Start free",
     "trialOfferTitle": "Limited-time offer:",
-    "trialOfferBody": "every new account gets 24 hours free on DeepCode Default (DeepSeek V4.1 Flash). No card needed; pick a plan when the trial ends."
+    "trialOfferBody": "every new account gets 24 hours free on <model>DeepCode Default (DeepSeek V4.1 Flash)</model>. No card needed; pick a plan when the trial ends."
   },
   "download": {
     "title": "Download DeepCode Studio",
@@ -183,7 +183,16 @@
     "credits": "Credits",
     "status": "Status",
     "duration": "Duration",
-    "emptyRequests": "No requests yet. Your first request from the app will show up here."
+    "emptyRequests": "No requests yet. Your first request from the app will show up here.",
+    "trialEnding": "Your free trial ends soon. Choose a plan to keep working without interruption.",
+    "trialEnded": "Your free trial has ended. Choose a plan to continue.",
+    "choosePlan": "View plans",
+    "getStartedTitle": "Get started in three steps",
+    "getStarted1": "Download DeepCode Studio for Windows, macOS or Linux.",
+    "getStarted2": "Open the app and press Sign in: it opens this site to connect your account.",
+    "getStarted3": "Open a project folder and ask the agent for your first change.",
+    "downloadApp": "Download the app",
+    "noUsageYet": "No usage yet. Your requests from the app will appear here."
   },
   "usage": {
     "title": "Usage",
@@ -364,7 +373,20 @@
     "quotaNextRenewal": "Next renewal: {date} UTC",
     "quotaRenews": "renews",
     "quotaNoSubscription": "no active subscription",
-    "quotaLowAlert": "Pool capacity is low ({pct}% left). Add a key or raise the Synthetic plan."
+    "quotaLowAlert": "Pool capacity is low ({pct}% left). Add a key or raise the Synthetic plan.",
+    "deleteUser": "Delete account",
+    "deleteUserHelp": "Removes the user, their keys, devices and subscription. Usage history is kept anonymised. They can sign up again with the same email and get a new free trial. This cannot be undone.",
+    "deleteUserConfirm": "Type the account email to confirm",
+    "deleteUserButton": "Delete account permanently",
+    "deleting": "Deleting…",
+    "userDeleted": "Account deleted. The email can sign up again as a new user.",
+    "deleteErrors": {
+      "not_found": "User not found.",
+      "confirm_mismatch": "The email you typed does not match.",
+      "cannot_delete_admin": "Admin accounts cannot be deleted here.",
+      "billing_cancel_failed": "Could not cancel the paid subscription at the billing provider. Nothing was deleted.",
+      "invalid_input": "Invalid input."
+    }
   },
   "mockBilling": {
     "title": "Test checkout (test mode)",

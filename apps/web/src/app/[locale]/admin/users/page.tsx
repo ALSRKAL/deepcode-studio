@@ -13,9 +13,9 @@ export default async function AdminUsersPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; deleted?: string }>;
 }) {
-  await params;
+  const { locale } = await params;
   const sp = await searchParams;
   await requireAdmin();
   const t = await getTranslations("admin");
@@ -44,6 +44,11 @@ export default async function AdminUsersPage({
   return (
     <div className="grid gap-6">
       <h1 className="text-scale-lg font-semibold">{t("users")}</h1>
+      {sp.deleted === "1" ? (
+        <p role="status" className="text-[14px] text-success">
+          {t("userDeleted")}
+        </p>
+      ) : null}
       <form className="flex gap-2" method="get">
         <input
           name="q"
@@ -73,7 +78,7 @@ export default async function AdminUsersPage({
               return (
                 <tr key={u.id} className="border-t border-border">
                   <td className="px-4 py-2">
-                    <a href={`/ar/admin/users/${u.id}`} className="hover:text-primary">
+                    <a href={`/${locale}/admin/users/${u.id}`} className="hover:text-primary">
                       <LtrIsland className="text-[13px]">{u.email}</LtrIsland>
                     </a>
                     {u.role === "admin" ? <Badge tone="primary">admin</Badge> : null}

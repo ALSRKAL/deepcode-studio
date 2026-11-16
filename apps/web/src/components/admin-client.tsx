@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { useTranslations } from "next-intl";
+import { useActionState, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import {
   addPoolKeyAction,
   setPoolKeyStatusAction,
@@ -9,6 +9,7 @@ import {
   setUserStatusAction,
   assignPlanAction,
   revokeAllKeysAction,
+  deleteUserAction,
   type AdminActionState,
 } from "@/actions/admin";
 
@@ -180,6 +181,43 @@ export function RevokeAllKeysButton({ userId }: { userId: string }) {
         {t("revokeAllKeys")}
       </button>
       {state.ok ? <span className="ms-2 text-[13px] text-success">✓</span> : null}
+    </form>
+  );
+}
+
+/** Danger zone: delete the account so the person can sign up again as new. */
+export function DeleteUserForm({ userId, email }: { userId: string; email: string }) {
+  const t = useTranslations("admin");
+  const [state, action, pending] = useActionState<AdminActionState, FormData>(deleteUserAction, {});
+  const [typed, setTyped] = useState("");
+  const locale = useLocale();
+  const matches = typed.trim().toLowerCase() === email.toLowerCase();
+  return (
+    <form action={action} className="grid gap-2 rounded-sm border border-danger/40 p-4" data-testid="admin-delete-user">
+      <p className="text-[14px] font-medium text-danger">{t("deleteUser")}</p>
+      <p className="text-[13px] text-fg-muted">{t("deleteUserHelp")}</p>
+      <input type="hidden" name="userId" value={userId} />
+      <input type="hidden" name="locale" value={locale} />
+      <label className="grid gap-1 text-[13px]">
+        <span>{t("deleteUserConfirm")}</span>
+        <input
+          name="confirmEmail"
+          dir="ltr"
+          autoComplete="off"
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          placeholder={email}
+          className={input}
+        />
+      </label>
+      <button
+        type="submit"
+        disabled={!matches || pending}
+        className="inline-flex h-9 w-fit items-center rounded-sm bg-danger px-3 text-[13px] font-medium text-white hover:bg-danger/90 disabled:opacity-50"
+      >
+        {pending ? t("deleting") : t("deleteUserButton")}
+      </button>
+      {state.error ? <p role="alert" className="text-[13px] text-danger">{t(`deleteErrors.${state.error}` as "deleteErrors.not_found")}</p> : null}
     </form>
   );
 }

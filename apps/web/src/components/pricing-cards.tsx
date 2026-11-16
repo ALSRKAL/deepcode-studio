@@ -1,19 +1,24 @@
 import { getTranslations } from "next-intl/server";
-import { plans } from "@deepcode/db";
+import { plans, SYNTHETIC_MODELS } from "@deepcode/db";
 import { Card, Badge, Num } from "@/components/ui/primitives";
 import { formatPrice } from "@/lib/money";
 import { ButtonLink } from "@/components/ui/button";
+
+/** Branded name plus the real model behind it, strongest first, for the plan's model ids. */
+function modelNames(ids: string[]): Array<{ id: string; name: string; real: string | null }> {
+  return SYNTHETIC_MODELS.filter((m) => ids.includes(m.id))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((m) => ({ id: m.id, name: m.displayName, real: /\(([^)]+)\)\.?$/.exec(m.description)?.[1] ?? null }));
+}
 
 /** Shared plan cards (docs/plan/03 §3.1): one source — the plans table. */
 export async function PricingCards({
   plans: rows,
   locale,
-  compact = false,
   signedIn = false,
 }: {
   plans: Array<typeof plans.$inferSelect>;
   locale: string;
-  compact?: boolean;
   /** Signed-in visitors pick a plan in billing; others start at sign-up. */
   signedIn?: boolean;
 }) {
@@ -21,7 +26,7 @@ export async function PricingCards({
   // Highlight the middle public plan (Pro when Starter/Pro/Team are offered).
   const featured = Math.floor((rows.length - 1) / 2) + (rows.length % 2 === 0 ? 1 : 0);
   return (
-    <div className={compact ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-4" : "grid gap-4 sm:grid-cols-2 lg:grid-cols-4"}>
+    <div className={`grid gap-4 sm:grid-cols-2 ${rows.length === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4"}`}>
       {rows.map((plan, i) => (
         <Card key={plan.id} className="p-5 flex flex-col gap-3" accent={i === featured}>
           <div className="flex items-center justify-between">
@@ -49,11 +54,22 @@ export async function PricingCards({
               <Num>{plan.maxDevices}</Num>
               <span>{t("devices")}</span>
             </li>
-            <li className="flex items-baseline gap-1.5">
+          </ul>
+          {/* Name the models instead of a bare count: that is what visitors compare plans on. */}
+          <div className="border-t border-border pt-3">
+            <p className="flex items-baseline gap-1.5 text-[13px] text-fg-muted">
               <Num>{plan.allowedModels.length}</Num>
               <span>{t("models")}</span>
-            </li>
-          </ul>
+            </p>
+            <ul className="mt-1.5 grid gap-1 text-[13px]" data-testid="plan-models">
+              {modelNames(plan.allowedModels).map((m) => (
+                <li key={m.id} className="flex items-baseline justify-between gap-2">
+                  <bdi dir="ltr">{m.name}</bdi>
+                  {m.real ? <bdi dir="ltr" className="truncate text-[12px] text-fg-subtle">{m.real}</bdi> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
           <ButtonLink
             href={signedIn ? `/${locale}/dashboard/billing` : `/${locale}/sign-up`}
             variant={i === featured ? "primary" : "secondary"}

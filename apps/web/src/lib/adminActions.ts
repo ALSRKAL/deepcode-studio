@@ -14,6 +14,7 @@ import { z } from "zod";
 import { insertPoolKey } from "./poolKeys";
 import { invalidateGateway } from "./gateway";
 import { audit } from "./audit";
+import { deleteUserAccount } from "./accountDeletion";
 
 /**
  * Admin mutations (docs/plan/03 §6). Every one is zod-checked, audited, and
@@ -223,4 +224,40 @@ export async function revokeAllKeys(
 
 export async function recentAudit(db: Database, limit = 100) {
   return db.select().from(auditLogs).orderBy(sql`${auditLogs.createdAt} desc`).limit(limit);
+}
+
+/**
+ * Admin: delete a user account entirely so the person can sign up again as new
+ * (owner request 2026-11-16). The admin must type the account's email to confirm.
+ * Admin accounts (including the acting admin) are never deleted here. Paid provider
+ * subscriptions are cancelled first (lib/accountDeletion.ts); the audit row is
+ * written before the delete so it survives with the target id.
+ */
+export async function adminDeleteUser(
+  db: Database,
+  admin: { id: string; ip?: string },
+  input: { userId: string; confirmEmail: string },
+  deps: Parameters<typeof deleteUserAccount>[2],
+): Promise<AdminOutcome> {
+  const parsed = z.object({ userId: z.string().uuid(), confirmEmail: z.string().trim().min(3) }).safeParse(input);
+  if (!parsed.success) return { ok: false, code: "invalid_input" };
+  const [target] = await db
+    .select({ id: users.id, email: users.email, role: users.role })
+    .from(users)
+    .where(eq(users.id, parsed.data.userId));
+  if (!target) return { ok: false, code: "not_found" };
+  if (target.email.toLowerCase() !== parsed.data.confirmEmail.toLowerCase()) return { ok: false, code: "confirm_mismatch" };
+  if (target.id === admin.id || target.role === "admin") return { ok: false, code: "cannot_delete_admin" };
+  await audit(db, {
+    actorId: admin.id,
+    action: "user.delete",
+    targetType: "user",
+    targetId: target.id,
+    metadata: { email: target.email },
+    ip: admin.ip,
+  });
+  const result = await deleteUserAccount(db, target.id, deps);
+  if (!result.ok) return { ok: false, code: result.code };
+  await invalidateGateway({ userIds: [target.id] });
+  return { ok: true };
 }

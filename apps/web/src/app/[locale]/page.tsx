@@ -10,6 +10,8 @@ import { Card, SectionTitle, Badge } from "@/components/ui/primitives";
 import { ButtonLink } from "@/components/ui/button";
 import { LtrIsland } from "@/components/ltr-island";
 import { PricingCards } from "@/components/pricing-cards";
+import { TrialOffer } from "@/components/trial-offer";
+import { env } from "@/lib/env";
 
 
 /** Landing (docs/plan/03 §3): hero with IDE preview, proof strip, sections 3–9. */
@@ -137,7 +139,10 @@ description: Extract tables from PDFs
         {/* 7 — Pricing */}
         <section className="mx-auto max-w-6xl px-4 py-16">
           <SectionTitle>{t("ctaPricing")}</SectionTitle>
-          <PricingCards plans={publicPlans} locale={locale} compact signedIn={user !== null} />
+          {env.TRIAL_ENABLED ? <TrialOffer /> : null}
+          <div className="mt-8">
+            <PricingCards plans={publicPlans} locale={locale} signedIn={user !== null} />
+          </div>
         </section>
 
         {/* 9 — FAQ */}
