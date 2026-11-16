@@ -116,6 +116,77 @@ export const CATALOG_MODELS: CatalogModel[] = [
 
 export const usdPerMTokToCredits = (usd: number) => Math.round(usd * 1_000_000);
 
+/**
+ * OpenCode Go allowance pricing (https://opencode.ai/docs/go, read 2026-11-16).
+ *
+ * A Go subscription is ONE monthly allowance; each model's "monthly limit" says how
+ * many dollars of its token price fill that allowance (5-hour window 20%, weekly 50%).
+ * $1 of a $15-limit model therefore uses 4x the allowance of $1 of a $60-limit model.
+ * Our credit price = Go token price x (60 / model limit), so one Go key carries about
+ * GO_KEY_CREDITS credits per month whatever the model mix, and plans can be sized
+ * against keys. Peak prices are used where Go has peak/off-peak, the lower context
+ * tier where it has tiers. Models that train on prompts are left out on purpose.
+ */
+export type GoTier = "free" | "economy" | "mid" | "premium";
+export interface GoModelPrice {
+  /** USD per 1M tokens: input, output, cached read. */
+  usd: [number, number, number];
+  /** Go monthly limit in USD (Go plan); null = free model. */
+  monthlyLimitUsd: number | null;
+  tier: GoTier;
+}
+export const GO_KEY_CREDITS = 60_000_000;
+export const GO_MODEL_PRICES: Record<string, GoModelPrice> = {
+  "beam-free": { usd: [0, 0, 0], monthlyLimitUsd: null, tier: "free" },
+  "longcat-2.5-free": { usd: [0, 0, 0], monthlyLimitUsd: null, tier: "free" },
+  "deepseek-v4.1-flash": { usd: [0.3, 1.2, 0.006], monthlyLimitUsd: 100, tier: "economy" },
+  "glm-5.3-flash": { usd: [0.15, 0.5, 0.03], monthlyLimitUsd: 60, tier: "economy" },
+  "glm-5.2": { usd: [1.4, 4.4, 0.26], monthlyLimitUsd: 60, tier: "economy" },
+  "kimi-k2.7-code": { usd: [0.95, 4, 0.19], monthlyLimitUsd: 60, tier: "economy" },
+  "longcat-2.0": { usd: [0.3, 1.2, 0.006], monthlyLimitUsd: 60, tier: "economy" },
+  "mimo-v2.6-flash": { usd: [0.14, 0.28, 0.0028], monthlyLimitUsd: 60, tier: "economy" },
+  "mimo-v2.5": { usd: [0.14, 0.28, 0.0028], monthlyLimitUsd: 60, tier: "economy" },
+  "minimax-m3": { usd: [0.3, 1.2, 0.06], monthlyLimitUsd: 60, tier: "economy" },
+  "qwen3.7-plus": { usd: [0.4, 1.6, 0.04], monthlyLimitUsd: 60, tier: "economy" },
+  hy4: { usd: [0.834, 2.501, 0.042], monthlyLimitUsd: 60, tier: "economy" },
+  hy3: { usd: [0.14, 0.58, 0.035], monthlyLimitUsd: 60, tier: "economy" },
+  "qwen3.8-flash": { usd: [0.15, 0.47, 0.016], monthlyLimitUsd: 30, tier: "mid" },
+  "hy4-preview": { usd: [0.834, 2.501, 0.042], monthlyLimitUsd: 30, tier: "mid" },
+  "gemini-4-argon": { usd: [2, 10, 0.1], monthlyLimitUsd: 30, tier: "mid" },
+  "minimax-m3.1-flash": { usd: [0.15, 0.6, 0.015], monthlyLimitUsd: 20, tier: "mid" },
+  "glm-5.3": { usd: [1.4, 4.4, 0.26], monthlyLimitUsd: 15, tier: "premium" },
+  "kimi-k3.1-pro": { usd: [2, 10, 0.2], monthlyLimitUsd: 15, tier: "premium" },
+  "kimi-k3": { usd: [3, 15, 0.3], monthlyLimitUsd: 15, tier: "premium" },
+  "step-5-preview": { usd: [1, 2.7, 0.1], monthlyLimitUsd: 15, tier: "premium" },
+  "mimo-v2.6-pro": { usd: [0.435, 0.87, 0.003625], monthlyLimitUsd: 15, tier: "premium" },
+  "mimo-v2.5-pro": { usd: [0.435, 0.87, 0.003625], monthlyLimitUsd: 15, tier: "premium" },
+  "qwen4-max": { usd: [1.5, 4.5, 0.075], monthlyLimitUsd: 15, tier: "premium" },
+  "qwen3.8-max": { usd: [2, 6, 0.25], monthlyLimitUsd: 15, tier: "premium" },
+  "deepseek-v4-pro": { usd: [1.32, 3.96, 0.044], monthlyLimitUsd: 15, tier: "premium" },
+  "grok-4.7": { usd: [2, 6, 0.5], monthlyLimitUsd: 15, tier: "premium" },
+  "gpt-6-luna": { usd: [0.1, 0.5, 0.01], monthlyLimitUsd: 15, tier: "premium" },
+  "gpt-5.6-luna": { usd: [0.2, 1.2, 0.02], monthlyLimitUsd: 15, tier: "premium" },
+  "claude-haiku-5-5": { usd: [0.1, 0.5, 0.01], monthlyLimitUsd: 15, tier: "premium" },
+};
+
+/** Credits per 1M tokens [input, output, cached] for a Go model, weighted by its allowance share. */
+export function goWeightedCredits(price: GoModelPrice): [number, number, number] {
+  const weight = price.monthlyLimitUsd ? 60 / price.monthlyLimitUsd : 0;
+  return price.usd.map((usd) => usdPerMTokToCredits(usd * weight)) as [number, number, number];
+}
+
+const goModelsOfTiers = (tiers: GoTier[]) =>
+  Object.entries(GO_MODEL_PRICES)
+    .filter(([, p]) => tiers.includes(p.tier))
+    .map(([id]) => id);
+
+/** Hosted plan layout (owner decision 2026-11-16): credits sized against GO_KEY_CREDITS. */
+export const GO_PLAN_LAYOUT: Record<string, { creditsPerPeriod: number; allowedModels: string[] }> = {
+  "starter-monthly": { creditsPerPeriod: 6_000_000, allowedModels: goModelsOfTiers(["free", "economy"]) },
+  "pro-monthly": { creditsPerPeriod: 20_000_000, allowedModels: goModelsOfTiers(["free", "economy", "mid", "premium"]) },
+  "team-monthly": { creditsPerPeriod: 60_000_000, allowedModels: goModelsOfTiers(["free", "economy", "mid", "premium"]) },
+};
+
 const privateModels = CATALOG_MODELS.filter((m) => !m.trainsOnPrompts);
 const freeModels = privateModels.filter((m) => m.free).map((m) => m.id);
 const cheapModels = [...freeModels, "glm-5.3-flash", "gpt-6-luna", "claude-haiku-5-5", "deepseek-v4.1-flash"];

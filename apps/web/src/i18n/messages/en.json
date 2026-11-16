@@ -77,7 +77,7 @@
     "current": "Your current plan",
     "recommended": "Recommended",
     "transparencyTitle": "How credits are calculated",
-    "transparencyBody": "credit = model list price × tokens, per million. When credits run out, requests stop and nothing is auto-charged.",
+    "transparencyBody": "Each model has a credit price per million tokens (see the table): fast models cost fewer credits, the strongest models more. When credits run out, requests stop and nothing is auto-charged.",
     "perModelPrices": "Model price table",
     "startFree": "Start free"
   },
