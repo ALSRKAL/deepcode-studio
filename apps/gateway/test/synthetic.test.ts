@@ -137,6 +137,20 @@ describe("Synthetic: pass-through for MCP tools and reasoning", () => {
   });
 });
 
+describe("Synthetic: context overflow reaches the IDE as a context-exceeded error", () => {
+  it("keeps Synthetic's 'Context limit exceeded' text so the IDE compacts and retries", async () => {
+    const t = await createTenant(h);
+    h.mock.script(t.poolSecrets[0]!, { status: 400, body: JSON.stringify({ error: "Context limit exceeded" }) });
+    const res = await call(h, t, "chat", { stream: false });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as any;
+    // The desktop agent's detector (adapters failure-inspection) needs "context" + "exceed".
+    expect(body.error.message.toLowerCase()).toContain("context");
+    expect(body.error.message.toLowerCase()).toContain("exceed");
+    expect(h.mock.requestsFor(t.poolSecrets[0]!)).toHaveLength(1);
+  });
+});
+
 describe("Synthetic: web search", () => {
   it("proxies POST /v1/tools/web-search to the upstream /v2/search with a pool key", async () => {
     const t = await createTenant(h, { providerPrefix: "synthetic" });

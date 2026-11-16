@@ -346,7 +346,7 @@ export interface PlanLayout {
   allowedModels: string[];
 }
 
-const TRIAL_MODELS = ["deepcode-default", "deepcode-lite"];
+const TRIAL_MODELS = ["deepcode-default"];
 const STARTER_MODELS = ["deepcode-default", "deepcode-lite", "deepcode-general", "deepcode-fast-agent"];
 const PRO_MODELS = [...STARTER_MODELS, "deepcode-mid", "deepcode-coder-pro"];
 const TEAM_MODELS = [...PRO_MODELS, "deepcode-architect"];
