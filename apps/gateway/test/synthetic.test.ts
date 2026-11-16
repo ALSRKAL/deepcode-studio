@@ -201,6 +201,7 @@ describe("Synthetic: units", () => {
     const model = SYNTHETIC_MODELS.find((m) => m.id === "deepcode-default")!;
     const [input, output, cached] = syntheticCredits(model);
     expect(cached).toBe(Math.round(input * 0.25));
+    for (const m of SYNTHETIC_MODELS) expect(syntheticCredits(m)[2]).toBeGreaterThanOrEqual(Math.round(m.cachedUsd * 1_000_000));
     const price = { inputPerMTok: input, outputPerMTok: output, cachedInputPerMTok: cached };
     const fresh = computeCredits({ input: 1_000_000, cachedInput: 0, output: 0, reasoning: 0 }, price);
     const allCached = computeCredits({ input: 1_000_000, cachedInput: 1_000_000, output: 0, reasoning: 0 }, price);
