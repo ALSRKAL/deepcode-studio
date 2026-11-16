@@ -386,7 +386,8 @@
       "cannot_delete_admin": "Admin accounts cannot be deleted here.",
       "billing_cancel_failed": "Could not cancel the paid subscription at the billing provider. Nothing was deleted.",
       "invalid_input": "Invalid input."
-    }
+    },
+    "status": "Status"
   },
   "mockBilling": {
     "title": "Test checkout (test mode)",
