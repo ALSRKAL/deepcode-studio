@@ -79,7 +79,7 @@ export type ClientConfigsResponse = z.infer<typeof ClientConfigsResponseSchema>;
 
 // ---- Releases manifest (electron-updater UpdateInfo, served as YAML) ----------
 
-/** electron-updater `UpdateInfo`. `sha2` is base64(SHA-256); `sha512` base64. */
+/** electron-updater `UpdateInfo`. `sha2` is hex SHA-256 (checked as hex by builder-util-runtime); `sha512` base64. */
 export const ElectronManifestFileSchema = z.object({
   url: z.string(),
   sha2: z.string().optional(),

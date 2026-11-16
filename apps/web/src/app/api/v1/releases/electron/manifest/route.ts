@@ -70,11 +70,13 @@ export async function GET(request: Request): Promise<Response> {
   };
   rows.sort((a, b) => rank(a.url) - rank(b.url));
 
-  // sha2 for electron-updater is base64(SHA-256); our rows store hex.
+  // electron-updater checks sha2 as HEX SHA-256 (builder-util-runtime:
+  // new DigestTransform(sha2, "sha256", "hex")). Sending base64 made every downloaded
+  // update fail its checksum, so no client could update. Rows store hex already.
   const manifest: ElectronManifest = ElectronManifestSchema.parse({
     version: latest.version,
     releaseDate: (latest.publishedAt ?? latest.createdAt).toISOString(),
-    files: rows.map((r) => ({ url: r.url, sha2: Buffer.from(r.sha256, "hex").toString("base64"), size: Number(r.sizeBytes) })),
+    files: rows.map((r) => ({ url: r.url, sha2: r.sha256.toLowerCase(), size: Number(r.sizeBytes) })),
   });
 
   return new Response(stringify(manifest), {
