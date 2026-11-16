@@ -252,6 +252,15 @@ export const upstreamPoolKeys = pgTable(
     lastErrorCode: text("last_error_code"),
     lastUsedAt: ts("last_used_at"),
     notes: text("notes"),
+    /**
+     * Upstream subscription quota (Synthetic.new GET /v2/quotas), polled by the
+     * gateway. `quotaRemainingPct` is null when the upstream reports no limit
+     * (no active subscription, or a provider without a quota API).
+     */
+    quotaRaw: jsonb("quota_raw").$type<Record<string, unknown>>(),
+    quotaRemainingPct: integer("quota_remaining_pct"),
+    quotaRenewsAt: ts("quota_renews_at"),
+    quotaCheckedAt: ts("quota_checked_at"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

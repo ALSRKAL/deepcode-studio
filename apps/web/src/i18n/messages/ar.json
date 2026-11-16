@@ -354,7 +354,14 @@
       "import_no_installers": "لا توجد ملفات تثبيت معروفة في هذا الإصدار.",
       "import_github_error": "تعذّر الاتصال بـ GitHub. أعد المحاولة.",
       "invalid_input": "تحقق من الحقول."
-    }
+    },
+    "quota": "حصة المزوّد",
+    "quotaPool": "سعة المجمّع (متوسط الحصة المتبقية للمفاتيح النشطة)",
+    "quotaNone": "لم تصل قراءة حصة بعد. البوابة تفحص مفاتيح Synthetic كل 15 دقيقة.",
+    "quotaNextRenewal": "أقرب تجديد: {date} UTC",
+    "quotaRenews": "يتجدد",
+    "quotaNoSubscription": "لا يوجد اشتراك نشط",
+    "quotaLowAlert": "سعة المجمّع منخفضة (متبقٍ {pct}%). أضف مفتاحاً أو ارفع خطة Synthetic."
   },
   "mockBilling": {
     "title": "دفع تجريبي (وضع الاختبار)",

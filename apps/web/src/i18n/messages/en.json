@@ -354,7 +354,14 @@
       "import_no_installers": "No recognised installers in this release.",
       "import_github_error": "Could not reach GitHub. Try again.",
       "invalid_input": "Check the fields."
-    }
+    },
+    "quota": "Upstream quota",
+    "quotaPool": "Pool capacity (average remaining quota of active keys)",
+    "quotaNone": "No quota reported yet. The gateway checks Synthetic keys every 15 minutes.",
+    "quotaNextRenewal": "Next renewal: {date} UTC",
+    "quotaRenews": "renews",
+    "quotaNoSubscription": "no active subscription",
+    "quotaLowAlert": "Pool capacity is low ({pct}% left). Add a key or raise the Synthetic plan."
   },
   "mockBilling": {
     "title": "Test checkout (test mode)",

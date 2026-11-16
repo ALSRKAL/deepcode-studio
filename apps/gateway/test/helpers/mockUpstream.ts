@@ -14,6 +14,10 @@ export interface Behavior {
   hang?: boolean;
   /** Write the stream one byte at a time (exercises the framer across chunk boundaries). */
   byteByByte?: boolean;
+  /** Replace the default stream with these raw SSE events. */
+  events?: string[];
+  /** Answer 200 with this JSON body (non-model endpoints such as /v2/search). */
+  json?: unknown;
 }
 
 export interface RecordedRequest {
@@ -70,6 +74,12 @@ export class MockUpstream {
           return;
         }
 
+        if (b.json !== undefined) {
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify(b.json));
+          return;
+        }
+
         const protocol = protocolOf(path.split("?")[0]!);
         const streaming = path.includes("streamGenerateContent") || body.stream === true;
         const includeUsage =
@@ -81,7 +91,7 @@ export class MockUpstream {
           return;
         }
 
-        const events = streamEvents(protocol, { includeUsage });
+        const events = b.events ?? streamEvents(protocol, { includeUsage });
         if (this.record) this.raw.set(secret, events.join(""));
         res.writeHead(200, {
           "content-type": "text/event-stream",

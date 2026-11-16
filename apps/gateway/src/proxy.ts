@@ -27,7 +27,9 @@ import type { Limits, RateResult } from "./limits.js";
 import type { Logger, SecretRegistry } from "./logger.js";
 import type { Balance, Settlement, SettlementRecord } from "./metering.js";
 import type { PoolKey, PoolManager } from "./pool.js";
+import { FAST_MODE_TIERS } from "@deepcode/db";
 import type { SyncService } from "./sync.js";
+import { aggregateChatCompletionStream, FAST_MODE_MULTIPLIER, FAST_PREFIX, isInfiniteModel } from "./synthetic.js";
 import { SseFramer, type PreparedBody, type ProtocolAdapter, type RequestContext } from "./protocols/index.js";
 export interface ProxyDeps {
   config: GatewayConfig;
@@ -115,13 +117,23 @@ export async function handleProxy(
       ...(path.method !== undefined ? { pathMethod: path.method } : {}),
     };
 
-    const model = adapter.extractModel(ctx);
-    if (!model) throw new GatewayHttpError("bad_request", "The request must name a model.");
+    const requestedModel = adapter.extractModel(ctx);
+    if (!requestedModel) throw new GatewayHttpError("bad_request", "The request must name a model.");
+    // `fast:<model>`: Synthetic fast mode (2x the draw), only for plans that include it.
+    const fast = requestedModel.startsWith(FAST_PREFIX);
+    const model = fast ? requestedModel.slice(FAST_PREFIX.length) : requestedModel;
+    if (fast && !FAST_MODE_TIERS.has(sub.plan.tier)) {
+      throw new GatewayHttpError("model_not_allowed", "Fast mode is not included in your plan.");
+    }
     if (!sub.plan.allowedModels.includes(model)) throw new GatewayHttpError("model_not_allowed");
     const routes = deps.catalog
       .routes(model)
       .filter((r) => r.provider.baseUrls[adapter.apiType] && (!r.provider.isFallback || sub.plan.fallbackEnabled));
-    const price = deps.catalog.price(model);
+    const basePrice = deps.catalog.price(model);
+    if (fast && routes.some((r) => isInfiniteModel(r.upstreamModel))) {
+      throw new GatewayHttpError("bad_request", "Fast mode and background (infinite) models cannot be combined.");
+    }
+    const price = basePrice && fast ? scalePrice(basePrice, FAST_MODE_MULTIPLIER) : basePrice;
     if (routes.length === 0 || !price || !deps.catalog.isServable(model)) {
       throw new GatewayHttpError("model_not_allowed", "This model is not currently available.");
     }
@@ -169,6 +181,7 @@ export async function handleProxy(
       requestId,
       userId: snapshot.userId,
       maxOutputTokens: cap,
+      fast,
       signal: upstreamAbort.signal,
       startedAt,
       log,
@@ -203,7 +216,9 @@ export async function handleProxy(
     };
 
     if (!isEventStream) {
-      const text = await upstream.res.body.text();
+      const raw = await upstream.res.body.text();
+      const assembled = contentType.includes("text/event-stream");
+      const text = assembled ? JSON.stringify(aggregateChatCompletionStream(raw)) : raw;
       let parsed: unknown;
       try {
         parsed = JSON.parse(text);
@@ -227,7 +242,7 @@ export async function handleProxy(
       return new Response(text, {
         status: upstream.res.statusCode,
         headers: {
-          "content-type": contentType || "application/json",
+          "content-type": assembled ? "application/json" : contentType || "application/json",
           ...commonHeaders,
           ...usageHeaders(sub, balance ?? { creditsLimit: sub.creditsLimit, creditsUsed: sub.creditsUsed + credits }),
         },
@@ -282,6 +297,7 @@ async function dispatch(
     requestId: string;
     userId: string;
     maxOutputTokens: number | null;
+    fast: boolean;
     signal: AbortSignal;
     startedAt: number;
     log: Logger;
@@ -304,17 +320,26 @@ async function dispatch(
       exclude.add(key.id);
       attempts += 1;
 
+      // Synthetic `infinite:` models must stream (long pauses time out otherwise);
+      // a non-streaming chat-completions caller gets the chunks assembled into JSON.
+      const forceStream = isInfiniteModel(route.upstreamModel) && !opts.stream;
+      if (forceStream && adapter.apiType !== "openai-chat-completions") {
+        await sel.release();
+        throw new GatewayHttpError("bad_request", "Background models require stream: true on this endpoint.");
+      }
+      const upstreamStream = opts.stream || forceStream;
       const prepared = adapter.prepareBody(ctx, {
-        upstreamModel: route.upstreamModel,
-        stream: opts.stream,
+        upstreamModel: opts.fast ? `${FAST_PREFIX}${route.upstreamModel}` : route.upstreamModel,
+        stream: upstreamStream,
         maxOutputTokens: opts.maxOutputTokens,
       });
+      if (forceStream) prepared.body.stream = true;
       for (const field of droppedParams(route.provider.id, route.upstreamModel)) delete prepared.body[field];
       const url = route.provider.baseUrls[adapter.apiType]!.replace(/\/$/, "") +
         adapter.upstreamPath(route.upstreamModel, ctx, opts.stream);
       const headers: Record<string, string> = {
         "content-type": "application/json",
-        accept: opts.stream ? "text/event-stream" : "application/json",
+        accept: upstreamStream ? "text/event-stream" : "application/json",
         "user-agent": USER_AGENT,
       };
       if (route.provider.sessionHeader) headers[route.provider.sessionHeader] = sessionId(deps, opts.userId);
@@ -327,7 +352,7 @@ async function dispatch(
           headers,
           body: JSON.stringify(prepared.body),
           dispatcher: deps.agent,
-          headersTimeout: opts.stream ? deps.config.streamHeadersTimeoutMs : deps.config.requestTimeoutMs,
+          headersTimeout: upstreamStream ? deps.config.streamHeadersTimeoutMs : deps.config.requestTimeoutMs,
           bodyTimeout: deps.config.bodyIdleTimeoutMs,
           signal: opts.signal,
         });
@@ -343,7 +368,8 @@ async function dispatch(
         return { res, key, route, prepared, releaseKey: sel.release, attempts, ttfbMs: deps.now() - opts.startedAt };
       }
 
-      if (status === 429 || status === 401 || status === 403 || status >= 500 || status === 408) {
+      // 402 = that upstream key has no subscription/credits left: cool it, use another.
+      if (status === 429 || status === 401 || status === 402 || status === 403 || status >= 500 || status === 408) {
         await res.body.dump({ limit: 64 * 1024 }).catch(() => {});
         await sel.release();
         if (status === 429) {
@@ -573,4 +599,13 @@ function streamResponse(
   });
 
   return new Response(body, { status: s.upstream.res.statusCode, headers: s.headers });
+}
+
+function scalePrice(price: ModelPrice, factor: number): ModelPrice {
+  return {
+    ...price,
+    inputPerMTok: price.inputPerMTok * factor,
+    cachedInputPerMTok: price.cachedInputPerMTok * factor,
+    outputPerMTok: price.outputPerMTok * factor,
+  };
 }

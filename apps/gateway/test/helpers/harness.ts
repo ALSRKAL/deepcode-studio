@@ -58,6 +58,8 @@ export async function startHarness(overrides: Partial<GatewayConfig> = {}): Prom
     settleWaitMs: 1_500,
     poolReloadIntervalMs: 15_000,
     catalogReloadIntervalMs: 60_000,
+    quotaPollIntervalMs: 900_000,
+    quotaAlertWebhookUrl: null,
     snapshotTtlSec: 30,
     ...overrides,
   };
@@ -80,6 +82,10 @@ export interface TenantOptions {
   plan?: Partial<typeof plans.$inferInsert>;
   subscription?: Partial<typeof subscriptions.$inferInsert>;
   fallbackKeys?: number;
+  /** Upstream model id per tenant model (default `${model}-upstream`). */
+  upstreamModel?: (model: string) => string;
+  /** Provider id prefix (e.g. "synthetic" to enable Synthetic-only features). */
+  providerPrefix?: string;
   user?: Partial<typeof users.$inferInsert>;
 }
 
@@ -105,7 +111,7 @@ export interface Tenant {
 export async function createTenant(h: Harness, opts: TenantOptions = {}): Promise<Tenant> {
   const db = h.gw.deps.db;
   const id = randomUUID().slice(0, 8);
-  const providerId = `p-${id}`;
+  const providerId = `${opts.providerPrefix ?? "p"}-${id}`;
   const models: [string, string] = [`m-${id}-a`, `m-${id}-b`];
   const base = h.mock.url;
   const baseUrls = {
@@ -116,7 +122,7 @@ export async function createTenant(h: Harness, opts: TenantOptions = {}): Promis
   };
   await db.insert(upstreamProviders).values({ id: providerId, displayName: providerId, baseUrls, sessionHeader: "x-opencode-session" });
   for (const m of models) {
-    await db.insert(modelRoutes).values({ model: m, providerId, apiType: "openai-chat-completions", upstreamModel: `${m}-upstream` });
+    await db.insert(modelRoutes).values({ model: m, providerId, apiType: "openai-chat-completions", upstreamModel: opts.upstreamModel?.(m) ?? `${m}-upstream` });
     await db.insert(modelPrices).values({ model: m, ...TEST_PRICE, effectiveFrom: new Date(0) });
   }
 

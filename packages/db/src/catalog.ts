@@ -250,3 +250,78 @@ export const PLACEHOLDER_PLANS = [
     sortOrder: 3,
   },
 ];
+
+/**
+ * Synthetic.new upstream (owner decision 2026-11-16: replaces OpenCode).
+ * Docs read 2026-11-16: https://dev.synthetic.new/docs/api/overview,
+ * https://dev.synthetic.new/docs/api/models, https://synthetic.new/pricing/models.
+ * - One OpenAI-compatible and one Anthropic-compatible base; quotas and web search
+ *   live under /v2 on the same host.
+ * - Subscriptions have a weekly credit limit drawn at a per-model discounted rate;
+ *   our credit price IS that discounted rate (1 credit = $0.000001 of allowance),
+ *   so plan credits map 1:1 onto Synthetic's own limit. Cached input is charged at
+ *   25% of input (owner decision: 75% discount on cache hits).
+ * - `infinite:` aliases do not count against the limit (credit price 0) and must
+ *   stream; `fast:` doubles the draw and is mutually exclusive with `infinite:`.
+ */
+export const SYNTHETIC_PROVIDER = {
+  id: "synthetic",
+  displayName: "Synthetic",
+  baseUrls: {
+    "openai-chat-completions": "https://api.synthetic.new/openai/v1",
+    "anthropic-messages": "https://api.synthetic.new/anthropic/v1",
+  } as Partial<Record<UpstreamApiType, string>>,
+  sessionHeader: null as string | null,
+  catalogFormat: "manual",
+  modelsUrl: null as string | null,
+  hideModelPattern: null as string | null,
+};
+
+/** Synthetic API origin (quotas, search) derived from a provider base URL. */
+export const SYNTHETIC_API_ORIGIN = "https://api.synthetic.new";
+
+export interface BrandedModel {
+  id: string;
+  displayName: string;
+  description: string;
+  upstreamModel: string;
+  contextWindow: number;
+  /** Synthetic subscription-discounted USD per 1M tokens: input, output. */
+  usd: [number, number];
+  vision: boolean;
+  /** starter = every paid plan; pro = Pro and Team only. */
+  minTier: "starter" | "pro";
+  sortOrder: number;
+  badge?: "recommended" | "new";
+}
+
+/** Strongest → lightest. Clients only ever see these ids; upstream targets can rotate. */
+export const SYNTHETIC_MODELS: BrandedModel[] = [
+  { id: "deepcode-architect", displayName: "DeepCode Architect", description: "Strongest reasoning, architecture and vision (Kimi K3.1 Pro).", upstreamModel: "syn:large:vision", contextWindow: 512_000, usd: [1.0, 7.0], vision: true, minTier: "pro", sortOrder: 10 },
+  { id: "deepcode-coder-pro", displayName: "DeepCode Coder Pro", description: "Heavy multi-file coding and complex tool calling (GLM-5.3).", upstreamModel: "hf:zai-org/GLM-5.3", contextWindow: 512_000, usd: [0.4, 2.2], vision: false, minTier: "pro", sortOrder: 20 },
+  { id: "deepcode-default", displayName: "DeepCode Default", description: "Best speed and coding for everyday work (DeepSeek V4.1 Flash).", upstreamModel: "syn:large:text", contextWindow: 512_000, usd: [0.06, 0.3], vision: true, minTier: "starter", sortOrder: 30, badge: "recommended" },
+  { id: "deepcode-fast-agent", displayName: "DeepCode Fast Agent", description: "Fast interactive agent and quick code edits (GLM-5.3 Flash).", upstreamModel: "hf:zai-org/GLM-5.3-Flash", contextWindow: 512_000, usd: [0.1, 0.25], vision: false, minTier: "starter", sortOrder: 40 },
+  { id: "deepcode-mid", displayName: "DeepCode Mid", description: "Unit tests, refactoring and documentation (Qwen3.8 27B).", upstreamModel: "hf:Qwen/Qwen3.8-27B", contextWindow: 256_000, usd: [0.23, 1.1], vision: false, minTier: "starter", sortOrder: 50 },
+  { id: "deepcode-lite", displayName: "DeepCode Lite", description: "Light, very high-volume tasks (GLM-4.7 Flash).", upstreamModel: "syn:small:text", contextWindow: 192_000, usd: [0.01, 0.05], vision: false, minTier: "starter", sortOrder: 60 },
+  { id: "deepcode-general", displayName: "DeepCode General", description: "Writing, translation and summaries (gpt-oss 120B).", upstreamModel: "hf:openai/gpt-oss-120b", contextWindow: 128_000, usd: [0.01, 0.05], vision: false, minTier: "starter", sortOrder: 70 },
+  { id: "deepcode-background", displayName: "DeepCode Background", description: "Free background mode: slower, never uses credits (indexing, commits, summaries).", upstreamModel: "infinite:small:vision", contextWindow: 512_000, usd: [0, 0], vision: true, minTier: "starter", sortOrder: 80 },
+];
+
+/** Credits per 1M tokens [input, output, cached input]; cached input = 25% of input. */
+export function syntheticCredits(model: BrandedModel): [number, number, number] {
+  const [input, output] = model.usd;
+  return [usdPerMTokToCredits(input), usdPerMTokToCredits(output), usdPerMTokToCredits(input * 0.25)];
+}
+
+const syntheticIds = (tiers: Array<BrandedModel["minTier"]>) =>
+  SYNTHETIC_MODELS.filter((m) => tiers.includes(m.minTier)).map((m) => m.id);
+
+/** Hosted plan layout on Synthetic: which branded models each plan offers. */
+export const SYNTHETIC_PLAN_MODELS: Record<string, string[]> = {
+  "starter-monthly": syntheticIds(["starter"]),
+  "pro-monthly": syntheticIds(["starter", "pro"]),
+  "team-monthly": syntheticIds(["starter", "pro"]),
+};
+
+/** Plans whose subscribers may use the `fast:` prefix (2x credits). */
+export const FAST_MODE_TIERS = new Set(["team"]);

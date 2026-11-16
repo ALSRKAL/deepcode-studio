@@ -29,6 +29,8 @@ const EnvSchema = z.object({
    */
   POOL_RELOAD_INTERVAL_MS: z.coerce.number().int().min(5_000).default(15_000),
   CATALOG_RELOAD_INTERVAL_MS: z.coerce.number().int().min(5_000).default(60_000),
+  QUOTA_POLL_INTERVAL_MS: z.coerce.number().int().min(60_000).default(900_000),
+  QUOTA_ALERT_WEBHOOK_URL: z.string().url().optional(),
 });
 
 export interface GatewayConfig {
@@ -55,6 +57,10 @@ export interface GatewayConfig {
   settleWaitMs: number;
   poolReloadIntervalMs: number;
   catalogReloadIntervalMs: number;
+  /** Synthetic /v2/quotas poll interval (free endpoint; default 15 min). */
+  quotaPollIntervalMs: number;
+  /** Optional webhook (Slack/Discord/any JSON) for low-quota and renewal alerts. */
+  quotaAlertWebhookUrl: string | null;
   /** Auth snapshot TTL. */
   snapshotTtlSec: number;
 }
@@ -90,5 +96,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     snapshotTtlSec: 30,
     poolReloadIntervalMs: e.POOL_RELOAD_INTERVAL_MS,
     catalogReloadIntervalMs: e.CATALOG_RELOAD_INTERVAL_MS,
+    quotaPollIntervalMs: e.QUOTA_POLL_INTERVAL_MS,
+    quotaAlertWebhookUrl: e.QUOTA_ALERT_WEBHOOK_URL ?? null,
   };
 }

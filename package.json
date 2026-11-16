@@ -16,7 +16,8 @@
     "db:generate": "pnpm --filter @deepcode/db generate",
     "db:migrate": "pnpm --filter @deepcode/db migrate",
     "db:seed": "pnpm --filter @deepcode/db seed",
-    "dev:gateway": "pnpm --filter @deepcode/gateway dev"
+    "dev:gateway": "pnpm --filter @deepcode/gateway dev",
+    "verify:synthetic": "node --env-file-if-exists=.env scripts/verify-synthetic-live.ts"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
@@ -26,7 +27,9 @@
     "vitest": "4.1.12"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"],
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
     "overrides": {
       "postcss": "8.5.33"
     }

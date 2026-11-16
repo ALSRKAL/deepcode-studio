@@ -359,3 +359,37 @@ Recorded 2026-11-14 while implementing. Where this section and the sections abov
 | Single region | Latency for distant users | > 30% of traffic outside the region |
 | Estimates on abort | Slight inaccuracy, flagged | Estimated ratio stays above 2% |
 | Redis as single coordination point | Redis outage = fail closed for rate limiting (configurable to fail open for paid tiers) | Multi-region |
+
+## Addendum 2026-11-16 — Synthetic.new replaces OpenCode as the upstream
+
+Owner decision: OpenCode providers and keys are disabled; Synthetic.new is the only
+upstream (priority 1). Docs read the same day: dev.synthetic.new/docs (overview, models,
+quotas, search) and synthetic.new/pricing/models.
+
+- **Endpoints.** OpenAI-compatible `https://api.synthetic.new/openai/v1`, Anthropic-compatible
+  `https://api.synthetic.new/anthropic/v1`; `GET /v2/quotas` (free) and `POST /v2/search`
+  (subscription only) on the same host.
+- **Branded models** (`packages/db/src/catalog.ts` `SYNTHETIC_MODELS`): clients only see
+  `deepcode-*` ids; each maps to a Synthetic alias or `hf:` model in `model_routes`, so
+  upstream rotations never reach clients. Starter: default, fast-agent, mid, lite, general,
+  background. Pro/Team add architect and coder-pro.
+- **Credits = Synthetic's subscription-discounted rate** (1 credit = $0.000001 of weekly
+  allowance); cached input at 25% of input (75% discount on cache hits).
+- **`infinite:`** (`deepcode-background`): price 0; the gateway forces `stream: true`
+  upstream and, for non-streaming chat-completions callers, assembles the SSE into one
+  `chat.completion` (content, reasoning, merged tool calls, usage).
+- **`fast:`** prefix: Team tier only, 2× credits, rejected with `infinite:` models.
+- **Key pool.** `SYNTHETIC_API_KEYS="syn_a,syn_b"` seeds encrypted pool keys on every gateway
+  start (new fingerprints only); admins add/disable keys live. Upstream 402 (no
+  subscription/credits on that key) now cools the key and fails over like 429/5xx.
+- **Quota telemetry.** The gateway polls `/v2/quotas` per Synthetic key every 15 min
+  (`QUOTA_POLL_INTERVAL_MS`), stores remaining % and `renewsAt` on `upstream_pool_keys`
+  (migration 0013), shows gauges in /admin/pool, and posts to `QUOTA_ALERT_WEBHOOK_URL`
+  (once per key per day) below 20% or within 72 h of renewal.
+- **Web search.** `POST /v1/tools/web-search {query}` → `/v2/search` with a pool key;
+  needs an active plan, no credits.
+- **Prompt caching.** The gateway never touches `system`/`messages`/`tools` and adds no
+  per-request headers; a test asserts byte-identical upstream bodies across turns.
+- **Not done:** embeddings route (`/v1/embeddings`) — the gateway has no embeddings adapter yet.
+- **Verification:** `pnpm verify:synthetic` (quotas, chat+stream+usage, tool round trip,
+  infinite stream, gateway end to end with `DEEPCODE_TEST_KEY`).

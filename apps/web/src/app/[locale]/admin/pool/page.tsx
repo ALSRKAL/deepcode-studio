@@ -32,13 +32,46 @@ export default async function AdminPoolPage({ params }: { params: Promise<{ loca
       lastErrorAt: upstreamPoolKeys.lastErrorAt,
       lastErrorCode: upstreamPoolKeys.lastErrorCode,
       keyVersion: upstreamPoolKeys.keyVersion,
+      quotaRemainingPct: upstreamPoolKeys.quotaRemainingPct,
+      quotaRenewsAt: upstreamPoolKeys.quotaRenewsAt,
+      quotaCheckedAt: upstreamPoolKeys.quotaCheckedAt,
     })
     .from(upstreamPoolKeys)
     .orderBy(desc(sql`${upstreamPoolKeys.createdAt}`));
 
+  // Live upstream quota (Synthetic /v2/quotas, polled by the gateway every 15 min).
+  const activeWithQuota = keys.filter((k) => k.status === "active" && k.quotaRemainingPct !== null);
+  const poolCapacity = activeWithQuota.length
+    ? Math.round(activeWithQuota.reduce((sum, k) => sum + (k.quotaRemainingPct ?? 0), 0) / activeWithQuota.length)
+    : null;
+  const soonest = keys
+    .map((k) => k.quotaRenewsAt)
+    .filter((d): d is Date => d instanceof Date)
+    .sort((a, b) => a.getTime() - b.getTime())[0];
+
   return (
     <div className="grid gap-6">
       <h1 className="text-scale-lg font-semibold">{t("pool")}</h1>
+      {poolCapacity !== null && poolCapacity < 20 ? (
+        <div role="alert" className="rounded-md border border-danger/40 bg-danger/10 px-4 py-3 text-[14px]">
+          {t("quotaLowAlert", { pct: poolCapacity })}
+        </div>
+      ) : null}
+      <Card className="p-6 grid gap-2">
+        <div className="flex items-baseline justify-between gap-4">
+          <span className="font-medium">{t("quotaPool")}</span>
+          <Num className="text-[20px]">{poolCapacity === null ? "—" : `${poolCapacity}%`}</Num>
+        </div>
+        <div className="h-2 w-full rounded-full bg-surface-2" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={poolCapacity ?? 0} aria-label={t("quotaPool")}>
+          <div
+            className={`h-2 rounded-full ${poolCapacity !== null && poolCapacity < 20 ? "bg-danger" : "bg-primary"}`}
+            style={{ width: `${poolCapacity ?? 0}%` }}
+          />
+        </div>
+        <p className="text-[13px] text-fg-subtle">
+          {poolCapacity === null ? t("quotaNone") : soonest ? t("quotaNextRenewal", { date: soonest.toISOString().slice(0, 16).replace("T", " ") }) : null}
+        </p>
+      </Card>
       <Card className="p-6">
         <AddPoolKeyForm providers={providers.map((p) => ({ id: p.id, displayName: p.displayName }))} />
       </Card>
@@ -53,6 +86,7 @@ export default async function AdminPoolPage({ params }: { params: Promise<{ loca
               <th className="px-4 py-2 text-start font-medium">{t("status")}</th>
               <th className="px-4 py-2 text-start font-medium">{t("requests")}</th>
               <th className="px-4 py-2 text-start font-medium">429 / 5xx</th>
+              <th className="px-4 py-2 text-start font-medium">{t("quota")}</th>
               <th className="px-4 py-2 text-start font-medium">{t("lastError")}</th>
               <th className="px-4 py-2 text-start font-medium" />
             </tr>
@@ -79,6 +113,26 @@ export default async function AdminPoolPage({ params }: { params: Promise<{ loca
                   <Num>
                     {Number(k.total429).toLocaleString("en-US")} / {Number(k.total5xx).toLocaleString("en-US")}
                   </Num>
+                </td>
+                <td className="px-4 py-2 min-w-36">
+                  {k.quotaRemainingPct !== null ? (
+                    <div className="grid gap-1">
+                      <Num className={k.quotaRemainingPct < 20 ? "text-danger" : undefined}>{k.quotaRemainingPct}%</Num>
+                      <div className="h-1.5 w-28 rounded-full bg-surface-2">
+                        <div
+                          className={`h-1.5 rounded-full ${k.quotaRemainingPct < 20 ? "bg-danger" : "bg-primary"}`}
+                          style={{ width: `${k.quotaRemainingPct}%` }}
+                        />
+                      </div>
+                      {k.quotaRenewsAt ? (
+                        <span className="text-[12px] text-fg-subtle" dir="ltr">
+                          {t("quotaRenews")} {k.quotaRenewsAt.toISOString().slice(0, 16).replace("T", " ")}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <span className="text-[12px] text-fg-subtle">{k.quotaCheckedAt ? t("quotaNoSubscription") : "—"}</span>
+                  )}
                 </td>
                 <td className="px-4 py-2">
                   {k.lastErrorCode ? (

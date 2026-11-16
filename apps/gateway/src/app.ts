@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { Redis } from "ioredis";
-import { Agent } from "undici";
+import { Agent, request } from "undici";
 import { sql } from "drizzle-orm";
 import {
   daysLeft,
@@ -13,7 +13,7 @@ import {
   type SubscriptionStatusResponse,
 } from "@deepcode/shared";
 import { createDatabase, type DatabaseHandle } from "@deepcode/db";
-import { Authenticator, lockReason, renewUrl } from "./auth.js";
+import { assertCanSpend, Authenticator, lockReason, renewUrl } from "./auth.js";
 import { Catalog } from "./catalog.js";
 import type { GatewayConfig } from "./config.js";
 import { errorResponse, GatewayHttpError } from "./errors.js";
@@ -28,6 +28,7 @@ import { ADAPTERS } from "./protocols/index.js";
 import { handleProxy, type ProxyDeps } from "./proxy.js";
 import { RedisScripts } from "./redisScripts.js";
 import { SyncService } from "./sync.js";
+import { pollSyntheticQuotas, seedSyntheticKeysFromEnv, syntheticOrigin } from "./synthetic.js";
 
 const RELOAD_CHANNEL = "deepcode:reload";
 const EXPOSED_HEADERS = [...Object.values(USAGE_HEADERS), "Retry-After"];
@@ -90,6 +91,10 @@ export function createGateway(
     deps,
     metricsText: () => metrics.render(),
     async start() {
+      // Plug-and-play upstream keys: SYNTHETIC_API_KEYS="syn_a,syn_b" in the environment.
+      await seedSyntheticKeysFromEnv({ db: handle.db, encryptionKey: config.encryptionKey, raw: process.env.SYNTHETIC_API_KEYS, log: logger }).catch(
+        (err) => logger.error("seeding SYNTHETIC_API_KEYS failed", { err: err instanceof Error ? err.message : "error" }),
+      );
       await Promise.all([deps.pool.reload(), deps.catalog.reload(new Date(now()))]);
       await handle.db.execute(sql`select ensure_usage_log_partitions(2)`);
       every(config.poolReloadIntervalMs, "pool reload", () => deps.pool.reload());
@@ -97,6 +102,33 @@ export function createGateway(
       every(60_000, "pool stats flush", () => deps.pool.flushStats());
       every(5_000, "settlement drain", () => deps.settlement.drain());
       every(6 * 3_600_000, "partition maintenance", () => handle.db.execute(sql`select ensure_usage_log_partitions(2)`));
+      // Synthetic.new quota gauges (GET /v2/quotas is free and not rate limited).
+      const pollQuotas = () =>
+        pollSyntheticQuotas({
+          db: handle.db,
+          agent,
+          revealKey: (id) => deps.pool.get(id)?.reveal() ?? null,
+          log: logger,
+          now,
+          onAlert: async (a) => {
+            // One alert per key and kind per day.
+            const fresh = await redis.set(`quota-alert:${a.poolKeyId}:${a.kind}`, "1", "EX", 86_400, "NX");
+            if (fresh !== "OK" || !config.quotaAlertWebhookUrl) return;
+            const text =
+              a.kind === "low"
+                ? `DeepCode: upstream key "${a.label}" has ${a.reading.remainingPct}% of its Synthetic quota left.`
+                : `DeepCode: upstream key "${a.label}" renews at ${a.reading.renewsAt?.toISOString()} (within 72 h).`;
+            await request(config.quotaAlertWebhookUrl, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ text, content: text, kind: a.kind, poolKeyId: a.poolKeyId }),
+              dispatcher: agent,
+              headersTimeout: 10_000,
+            }).then((r) => r.body.dump());
+          },
+        });
+      void pollQuotas().catch((err) => logger.warn("quota poll failed", { err }));
+      every(config.quotaPollIntervalMs, "quota poll", pollQuotas);
       await subscriber.subscribe(RELOAD_CHANNEL);
       subscriber.on("message", (_channel, message: string) => {
         const task = message === "pool" ? deps.pool.reload() : message === "catalog" ? deps.catalog.reload(new Date(now())) : null;
@@ -273,6 +305,65 @@ function buildApp(deps: Gateway["deps"], metrics: Metrics, logger: Logger): Hono
         ...usageHeaders(sub),
         ...rateHeaders(rate),
       });
+    } catch (err) {
+      return toErrorResponse(err, requestId, logger, rateHeaders(rate));
+    }
+  });
+
+  /**
+   * Built-in web research for the IDE, backed by Synthetic's zero-data-retention
+   * search (POST https://api.synthetic.new/v2/search). Needs an active plan; does not
+   * use credits. Body: { "query": string }.
+   */
+  app.post("/v1/tools/web-search", async (c) => {
+    const requestId = uuidv7(deps.now());
+    let rate = null;
+    try {
+      const snapshot = await deps.auth.authenticate(c.req.raw, clientIp(c, deps.config.trustProxy));
+      const sub = assertCanSpend(snapshot, deps.now(), deps.config.webOrigin);
+      rate = await deps.limits.rpm(`search:${snapshot.keyId}`, Math.max(10, Math.min(60, sub.plan.rpmLimit)), requestId);
+      if (!rate.allowed) throw new GatewayHttpError("rate_limited", undefined, { retryAfterSec: rate.resetMs / 1000 });
+      let query: unknown;
+      try {
+        query = ((await c.req.json()) as { query?: unknown })?.query;
+      } catch {
+        query = undefined;
+      }
+      if (typeof query !== "string" || query.trim().length === 0 || query.length > 1_000) {
+        throw new GatewayHttpError("bad_request", "Body must be { \"query\": \"...\" } (1-1000 characters).");
+      }
+      const provider = deps.catalog.providers().find((p) => syntheticOrigin(p.baseUrls, p.id));
+      const origin = provider ? syntheticOrigin(provider.baseUrls, provider.id) : null;
+      if (!provider || !origin) throw new GatewayHttpError("upstream_unavailable", "Web search is not configured.");
+      const exclude = new Set<string>();
+      for (let attempt = 0; attempt < deps.config.maxAttempts; attempt += 1) {
+        const sel = await deps.pool.select(provider.id, "web-search", requestId, exclude);
+        if (!sel.key) break;
+        exclude.add(sel.key.id);
+        try {
+          const res = await request(`${origin}/v2/search`, {
+            method: "POST",
+            headers: { authorization: `Bearer ${sel.key.reveal()}`, "content-type": "application/json", "user-agent": "deepcode-gateway/1.0" },
+            body: JSON.stringify({ query: query.trim() }),
+            dispatcher: deps.agent,
+            headersTimeout: 30_000,
+            bodyTimeout: 30_000,
+          });
+          const text = await res.body.text();
+          if (res.statusCode === 200) {
+            return new Response(text, {
+              status: 200,
+              headers: { "content-type": "application/json", "cache-control": "no-store", [USAGE_HEADERS.requestId]: requestId, ...rateHeaders(rate) },
+            });
+          }
+          if (res.statusCode === 429 || res.statusCode >= 500) await deps.pool.recordFailure(sel.key, `search_${res.statusCode}`);
+          else if (res.statusCode === 401 || res.statusCode === 402 || res.statusCode === 403) await deps.pool.recordFailure(sel.key, `search_${res.statusCode}`);
+          else throw new GatewayHttpError("bad_request", "The search request was rejected.");
+        } finally {
+          await sel.release();
+        }
+      }
+      throw new GatewayHttpError("upstream_unavailable");
     } catch (err) {
       return toErrorResponse(err, requestId, logger, rateHeaders(rate));
     }

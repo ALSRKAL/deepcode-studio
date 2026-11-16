@@ -138,6 +138,11 @@ export class Catalog {
     return this.#models.get(model);
   }
 
+  /** Every enabled provider (web search picks the Synthetic one). */
+  providers(): ProviderInfo[] {
+    return [...this.#providers.values()];
+  }
+
   provider(id: string): ProviderInfo | undefined {
     return this.#providers.get(id);
   }

@@ -59,7 +59,7 @@ end
 if best then
   redis.call('ZADD', 'pool:inflight:' .. best, now, member)
   redis.call('PEXPIRE', 'pool:inflight:' .. best, stale)
-  redis.call('SET', 'pool:lu:' .. best, now)
+  redis.call('SET', 'pool:lu:' .. best, now, 'PX', 86400000)
   return {best, -1}
 end
 return {'', soonest}

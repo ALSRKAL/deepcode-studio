@@ -57,6 +57,7 @@ export class PoolKey {
 
 const STALE_INFLIGHT_MS = 30 * 60_000;
 const MINUTE_STAT_TTL_SEC = 48 * 3600;
+const TOTALS_TTL_SEC = 24 * 3600;
 
 export type SelectResult = { key: PoolKey; release: () => Promise<void> } | { key: null; retryAfterMs: number };
 
@@ -103,6 +104,11 @@ export class PoolManager {
 
   size(): number {
     return this.#keys.size;
+  }
+
+  /** A loaded key by id (quota polling); undefined when inactive or not loaded. */
+  get(id: string): PoolKey | undefined {
+    return this.#keys.get(id);
   }
 
   /** Least-loaded selection among the provider's keys that serve `model`. */
@@ -192,6 +198,8 @@ export class PoolManager {
       .expire(mk, MINUTE_STAT_TTL_SEC)
       .hincrby(`pool:tot:${keyId}`, "requests", 1)
       .hincrby(`pool:tot:${keyId}`, field, field === "ok" ? 0 : 1)
+      // Sliding TTL: flushStats drains this every 60 s; the TTL only reaps totals of deleted keys.
+      .expire(`pool:tot:${keyId}`, TOTALS_TTL_SEC)
       .exec();
   }
 
