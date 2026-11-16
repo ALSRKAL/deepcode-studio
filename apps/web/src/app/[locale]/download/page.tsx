@@ -8,6 +8,8 @@ import { SiteFooter } from "@/components/site-footer";
 import { DownloadDetector } from "@/components/download-detector";
 import { Card, Num, EmptyState } from "@/components/ui/primitives";
 import { LtrIsland } from "@/components/ltr-island";
+import { CopyButton } from "@/components/ui/client";
+import { env } from "@/lib/env";
 
 /** Download centre (docs/plan/03 §3.2): OS detection + full matrix from releases. */
 export default async function DownloadPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -22,6 +24,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
 
   const name = (p: string) => (p === "win" ? "Windows" : p === "mac" ? "macOS" : "Linux");
   const latestVersion = rows[0]?.version;
+  const origin = env.APP_URL.replace(/\/$/, "");
 
   return (
     <>
@@ -29,6 +32,27 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
       <main className="mx-auto max-w-6xl px-4 py-16">
         <h1 className="text-scale-lg font-semibold">{t("title")}</h1>
         <p className="mt-2 text-fg-muted text-[15px]">{t("sub")}</p>
+
+        <Card className="mt-8 p-5">
+          <h2 className="text-scale-md font-semibold">{t("installTitle")}</h2>
+          <p className="mt-1 text-[14px] text-fg-muted">{t("installSub")}</p>
+          {[
+            { label: t("installWin"), cmd: `irm ${origin}/install.ps1 | iex` },
+            { label: t("installUnix"), cmd: `curl -fsSL ${origin}/install.sh | sh` },
+          ].map(({ label, cmd }) => (
+            <div key={cmd} className="mt-4">
+              <div className="text-[13px] text-fg-subtle">{label}</div>
+              <div className="mt-1 flex items-center gap-2">
+                <code dir="ltr" className="flex-1 overflow-x-auto whitespace-nowrap rounded-md border border-border bg-surface px-3 py-2 font-mono text-[13px]">
+                  {cmd}
+                </code>
+                <CopyButton value={cmd} label={t("copy")} />
+              </div>
+            </div>
+          ))}
+          <p className="mt-4 text-[12px] text-fg-subtle">{t("installNote")}</p>
+        </Card>
+
         <div className="mt-8">
           <DownloadDetector
             builds={rows.map((r) => ({

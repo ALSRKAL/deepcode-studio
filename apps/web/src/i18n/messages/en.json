@@ -90,7 +90,13 @@
     "size": "Size",
     "date": "Date",
     "sha256": "SHA-256",
-    "noReleases": "No published releases yet."
+    "noReleases": "No published releases yet.",
+    "installTitle": "Install with one command (recommended)",
+    "installSub": "Downloads the latest version, checks its SHA-256 fingerprint and installs it for your user, without admin rights and without the browser's download warnings. Updates then arrive inside the app.",
+    "installWin": "Windows — paste in PowerShell",
+    "installUnix": "macOS and Linux — paste in Terminal",
+    "copy": "Copy",
+    "installNote": "Prefer a normal download? Use the buttons below; Windows may show a SmartScreen notice (More info → Run anyway) because the installer is not code-signed yet."
   },
   "auth": {
     "signInTitle": "Sign in",

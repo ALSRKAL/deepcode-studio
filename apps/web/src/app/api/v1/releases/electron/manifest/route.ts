@@ -48,12 +48,33 @@ export async function GET(request: Request): Promise<Response> {
     });
   }
 
+  // Every installer of that version: the desktop keeps the one its updater can install
+  // (.AppImage / .deb / .rpm on Linux, .zip on macOS, .exe on Windows). Listing a single
+  // row handed AppImage users an .rpm, which the updater rejects.
+  const rows = await db()
+    .db.select()
+    .from(releases)
+    .where(
+      and(
+        eq(releases.channel, channel),
+        eq(releases.platform, dbPlatform),
+        eq(releases.arch, dbArch),
+        eq(releases.version, latest.version),
+        isNotNull(releases.publishedAt),
+      ),
+    );
+  const preferred = [".appimage", ".zip", ".exe", ".deb", ".rpm", ".dmg"];
+  const rank = (u: string) => {
+    const i = preferred.findIndex((ext) => u.toLowerCase().endsWith(ext));
+    return i < 0 ? preferred.length : i;
+  };
+  rows.sort((a, b) => rank(a.url) - rank(b.url));
+
   // sha2 for electron-updater is base64(SHA-256); our rows store hex.
-  const sha2 = Buffer.from(latest.sha256, "hex").toString("base64");
   const manifest: ElectronManifest = ElectronManifestSchema.parse({
     version: latest.version,
     releaseDate: (latest.publishedAt ?? latest.createdAt).toISOString(),
-    files: [{ url: latest.url, sha2, size: Number(latest.sizeBytes) }],
+    files: rows.map((r) => ({ url: r.url, sha2: Buffer.from(r.sha256, "hex").toString("base64"), size: Number(r.sizeBytes) })),
   });
 
   return new Response(stringify(manifest), {
