@@ -153,6 +153,7 @@ console.log("\n4) infinite:small:vision (background mode, streaming required)");
     max_tokens: 100,
   });
   if (s.status === 200) ok("background stream", `→ ${JSON.stringify(s.content).slice(0, 40)}`);
+  else if (s.status === 402 || s.status === 400) console.log("  – background stream  skipped: infinite mode is not in this Synthetic plan (Big only); deepcode-background stays hidden");
   else bad("background stream", hint(s.status, s.error));
 }
 
