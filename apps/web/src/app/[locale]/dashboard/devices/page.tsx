@@ -17,7 +17,7 @@ export default async function DevicesPage({ params }: { params: Promise<{ locale
     <div className="grid grid-cols-1 gap-6">
       <h1 className="text-scale-lg font-semibold">{t("title")}</h1>
       <p className="text-fg-muted text-[14px] max-w-prose">{t("body")}</p>
-      <Card className="overflow-x-auto">
+      <Card className="overflow-x-auto" scrollLabel={t("title")}>
         {rows.length === 0 ? (
           <div className="p-6">
             <EmptyState title={t("title")} body={t("empty")} />

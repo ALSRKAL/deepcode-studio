@@ -21,15 +21,20 @@ echo "[start] web"
 (cd /app/web/apps/web && PORT=3000 HOSTNAME=127.0.0.1 NODE_OPTIONS="--max-old-space-size=${WEB_HEAP_MB:-200}" exec node server.js) &
 WEB_PID=$!
 
+echo "[start] remote-control relay"
+ZCODE_RELAY_HOST=127.0.0.1 ZCODE_RELAY_PORT=8443 ZCODE_RELAY_TRUST_PROXY=1 ZCODE_RELAY_MOBILE_DIR=/app/remote/mobile \
+  NODE_OPTIONS="--max-old-space-size=${RELAY_HEAP_MB:-64}" node /app/remote/relay.mjs &
+RELAY_PID=$!
+
 echo "[start] proxy on :${PORT:-10000}"
 caddy run --config /app/Caddyfile --adapter caddyfile &
 CADDY_PID=$!
 
-trap 'kill -TERM $GATEWAY_PID $WEB_PID $CADDY_PID 2>/dev/null || true' TERM INT
+trap 'kill -TERM $GATEWAY_PID $WEB_PID $CADDY_PID $RELAY_PID 2>/dev/null || true' TERM INT
 set +e
-wait -n $GATEWAY_PID $WEB_PID $CADDY_PID
+wait -n $GATEWAY_PID $WEB_PID $CADDY_PID $RELAY_PID
 status=$?
 echo "[start] a process exited (status $status); stopping the container"
-kill -TERM $GATEWAY_PID $WEB_PID $CADDY_PID 2>/dev/null || true
+kill -TERM $GATEWAY_PID $WEB_PID $CADDY_PID $RELAY_PID 2>/dev/null || true
 wait
 exit "$status"

@@ -36,7 +36,7 @@ export default async function KeysPage({ params }: { params: Promise<{ locale: s
         <CreateKeyForm disabled={active.length >= maxKeys} />
       </Card>
 
-      <Card className="overflow-x-auto">
+      <Card className="overflow-x-auto" scrollLabel={t("title")}>
         <table className="w-full text-[14px]">
           <thead className="text-fg-subtle text-[13px]">
             <tr>

@@ -26,6 +26,19 @@
 		}
 	}
 
+	# Phone remote control relay (apps/desktop/packages/relay): the desktop and the phone
+	# both connect out to it, so it works on any network. Page at /remote/, socket at /remote/ws.
+	redir /remote /remote/ 308
+	handle_path /remote/* {
+		reverse_proxy 127.0.0.1:8443 {
+			flush_interval -1
+			transport http {
+				read_timeout 24h
+				write_timeout 24h
+			}
+		}
+	}
+
 	# Internal and metrics endpoints are only for processes inside this container.
 	@internal path /internal/* /metrics
 	handle @internal {

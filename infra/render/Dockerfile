@@ -2,6 +2,7 @@
 #
 # One container runs the gateway (8790), the web portal (3000) and Caddy on $PORT:
 #   /v1/*, /v1beta/*, /healthz, /readyz  → gateway (SSE streamed, no buffering)
+#   /remote/*                           → phone remote-control relay (8443)
 #   everything else                     → web portal
 # /internal/* and /metrics are NOT routed: only the web process reaches the
 # gateway's internal API over 127.0.0.1.
@@ -46,6 +47,9 @@ RUN cp /usr/bin/caddy.cap /usr/bin/caddy && rm /usr/bin/caddy.cap && chmod 755 /
 COPY --from=build --chown=node:node /out/gateway ./gateway
 COPY --from=build --chown=node:node /out/web ./web
 COPY --chown=node:node infra/render/Caddyfile infra/render/start.sh ./
+# Phone remote-control relay + its phone page, built from the desktop repo
+# (infra/render/remote/README.md says how to refresh them).
+COPY --chown=node:node infra/render/remote ./remote
 RUN chmod +x /app/start.sh
 USER node
 ENV PORT=10000

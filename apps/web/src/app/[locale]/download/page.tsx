@@ -43,7 +43,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
             <div key={cmd} className="mt-4">
               <div className="text-[13px] text-fg-subtle">{label}</div>
               <div className="mt-1 flex items-center gap-2">
-                <code dir="ltr" className="flex-1 overflow-x-auto whitespace-nowrap rounded-md border border-border bg-surface px-3 py-2 font-mono text-[13px]">
+                <code dir="ltr" tabIndex={0} aria-label={label} className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-md border border-border bg-surface px-3 py-2 font-mono text-[13px]">
                   {cmd}
                 </code>
                 <CopyButton value={cmd} label={t("copy")} />
@@ -72,7 +72,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
             <EmptyState title={t("matrix")} body={t("noReleases")} />
           </div>
         ) : (
-          <Card className="mt-4 overflow-x-auto">
+          <Card className="mt-4 overflow-x-auto" scrollLabel={t("matrix")}>
             <table className="w-full text-[14px]">
               <thead className="text-fg-subtle text-[13px]">
                 <tr>

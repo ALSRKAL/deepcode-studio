@@ -129,7 +129,7 @@ export default async function DashboardOverviewPage({ params }: { params: Promis
         </Card>
       </div>
 
-      <Card className="overflow-x-auto">
+      <Card className="overflow-x-auto" scrollLabel={t("lastRequests")}>
         <p className="px-4 pt-4 text-fg-subtle text-[13px]">{t("lastRequests")}</p>
         {recent.length === 0 ? (
           <div className="p-6">

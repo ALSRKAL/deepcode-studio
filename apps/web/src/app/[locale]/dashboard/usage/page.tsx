@@ -106,7 +106,7 @@ export default async function UsagePage({
         )}
       </Card>
 
-      <Card className="overflow-x-auto">
+      <Card className="overflow-x-auto" scrollLabel={t("title")}>
         <div className="flex items-center justify-between px-4 pt-4">
           <p className="text-fg-subtle text-[13px]">
             {t("history")} — <Num>{total.toLocaleString("en-US")}</Num>

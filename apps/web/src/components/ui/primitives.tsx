@@ -5,13 +5,17 @@ export function Card({
   children,
   className = "",
   accent = false,
+  scrollLabel,
 }: {
   children: React.ReactNode;
   className?: string;
   accent?: boolean;
+  /** For a card that scrolls sideways (tables on phones): keyboard-focusable named region (WCAG 2.1.1). */
+  scrollLabel?: string;
 }) {
   return (
     <div
+      {...(scrollLabel ? { tabIndex: 0, role: "region", "aria-label": scrollLabel } : {})}
       className={`rounded-lg border border-border bg-surface ${accent ? "border-t-2 border-t-primary" : ""} ${className}`}
     >
       {children}
