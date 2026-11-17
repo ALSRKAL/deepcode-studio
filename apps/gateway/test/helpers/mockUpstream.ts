@@ -16,6 +16,8 @@ export interface Behavior {
   byteByByte?: boolean;
   /** Replace the default stream with these raw SSE events. */
   events?: string[];
+  /** Wait this long before sending any response headers (a queued model). */
+  delayMs?: number;
   /** Answer 200 with this JSON body (non-model endpoints such as /v2/search). */
   json?: unknown;
 }
@@ -67,6 +69,8 @@ export class MockUpstream {
         const path = req.url ?? "";
         if (this.record) this.requests.push({ secret, path, headers: req.headers, body });
         const b = this.#behaviors.get(secret)?.shift() ?? {};
+        if (b.delayMs) await new Promise((r) => setTimeout(r, b.delayMs));
+        if (res.destroyed) return;
 
         if (b.status && b.status !== 200) {
           res.writeHead(b.status, { "content-type": "application/json", ...b.headers });

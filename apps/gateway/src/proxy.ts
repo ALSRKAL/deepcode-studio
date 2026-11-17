@@ -381,6 +381,12 @@ async function dispatch(
       } catch (err) {
         await sel.release();
         if (opts.signal.aborted) throw new GatewayHttpError("bad_request", "Client closed the request.", { httpStatus: 499 });
+        // A slow model queue is not a broken key: cooling the (only) key on a timeout
+        // made every customer fail for minutes. Answer a retryable 503 instead.
+        if (err instanceof Error && /HeadersTimeout|BodyTimeout/i.test(`${err.name} ${(err as { code?: string }).code ?? ""}`)) {
+          opts.log.warn("upstream timed out before responding", { poolKeyId: key.id, model: opts.model, err: err.name });
+          throw new GatewayHttpError("upstream_unavailable", "The model is busy right now. Retry shortly.", { retryAfterSec: 5 });
+        }
         await deps.pool.recordFailure(key, err instanceof Error ? err.name : "network");
         continue;
       }
@@ -406,6 +412,10 @@ async function dispatch(
         } catch (err) {
           await sel.release();
           if (opts.signal.aborted) throw new GatewayHttpError("bad_request", "Client closed the request.", { httpStatus: 499 });
+          if (err instanceof Error && /Timeout/i.test(`${err.name} ${(err as { code?: string }).code ?? ""}`)) {
+            opts.log.warn("upstream stalled before its first event", { poolKeyId: key.id, model: opts.model });
+            throw new GatewayHttpError("upstream_unavailable", "The model is busy right now. Retry shortly.", { retryAfterSec: 5 });
+          }
           await deps.pool.recordFailure(key, err instanceof Error ? err.name : "network");
           continue;
         }

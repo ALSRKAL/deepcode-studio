@@ -472,6 +472,17 @@ describe("upstream key pool", () => {
     expect(text).not.toContain('"error":"Error from inference backend');
   });
 
+  it("a model that is slower than the stream start window gets a retryable 503 and the only key is not cooled", async () => {
+    const t = await createTenant(h, { keys: [{}] });
+    h.mock.script(t.poolSecrets[0]!, { delayMs: 6_000 });
+    const res = await call(h, t, "chat");
+    expect(res.status).toBe(503);
+    expect((await errorOf(res)).code).toBe("upstream_unavailable");
+    expect(await h.gw.deps.redis.exists(`pool:cool:${t.poolKeyIds[0]}`)).toBe(0);
+    // The next request is served normally.
+    expect((await call(h, t, "chat", { stream: false })).status).toBe(200);
+  }, 20_000);
+
   it("G-20: a 401 from upstream removes the key, alerts, and retries on another key", async () => {
     const t = await createTenant(h, { keys: [{ weight: 100 }, { weight: 1 }] });
     h.mock.script(t.poolSecrets[0]!, { status: 401 });

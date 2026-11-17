@@ -12,7 +12,9 @@ const EnvSchema = z.object({
   GATEWAY_METRICS_PORT: z.coerce.number().int().positive().optional(),
   GATEWAY_METRICS_HOST: z.string().default("127.0.0.1"),
   GATEWAY_PUBLIC_WEB_ORIGIN: z.url().default("http://localhost:3000"),
-  UPSTREAM_STREAM_HEADERS_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  // Synthetic sends stream headers only when generation starts; under load that took
+  // 90 s (2026-11-18). 30 s turned a slow queue into failures for every stream.
+  UPSTREAM_STREAM_HEADERS_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
   UPSTREAM_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
   UPSTREAM_BODY_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
   MAX_REQUEST_BODY_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
