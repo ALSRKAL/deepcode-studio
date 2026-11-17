@@ -417,6 +417,61 @@ describe("upstream key pool", () => {
     expect((await h.gw.deps.pool.select(t.providerId, t.models[0], "probe4", others)).key).not.toBeNull();
   });
 
+  // Customer report 2026-11-18: "Type validation failed … expected array, received
+  // undefined" — Synthetic answered 200 with {"error":"Error from inference backend: …"}.
+  const BACKEND_ERROR = { error: "Error from inference backend: Internal server error" };
+  const sseData = (v: unknown) => `data: ${typeof v === "string" ? v : JSON.stringify(v)}\n\n`;
+
+  it("a 200 JSON body that is only a backend error is retried on the same (only) key", async () => {
+    const t = await createTenant(h, { keys: [{}] });
+    h.mock.script(t.poolSecrets[0]!, { json: BACKEND_ERROR });
+    const res = await call(h, t, "chat", { stream: false });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { choices?: unknown[] };
+    expect(Array.isArray(body.choices)).toBe(true);
+    expect(h.mock.requestsFor(t.poolSecrets[0]!)).toHaveLength(2);
+    expect(await h.gw.deps.redis.exists(`pool:cool:${t.poolKeyIds[0]}`)).toBe(0);
+  });
+
+  it("a stream whose first event is a backend error is retried before any byte reaches the client", async () => {
+    const t = await createTenant(h, { keys: [{}] });
+    h.mock.script(t.poolSecrets[0]!, { events: [sseData(BACKEND_ERROR)] });
+    const res = await call(h, t, "chat");
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).not.toContain("inference backend");
+    expect(text).toContain("chat.completion.chunk");
+    expect(h.mock.requestsFor(t.poolSecrets[0]!)).toHaveLength(2);
+  });
+
+  it("an upstream 5xx is retried on the only key without cooling it", async () => {
+    const t = await createTenant(h, { keys: [{}] });
+    h.mock.script(t.poolSecrets[0]!, { status: 500, body: JSON.stringify(BACKEND_ERROR) });
+    expect((await call(h, t, "chat", { stream: false })).status).toBe(200);
+    expect(h.mock.requestsFor(t.poolSecrets[0]!)).toHaveLength(2);
+    expect(await h.gw.deps.redis.exists(`pool:cool:${t.poolKeyIds[0]}`)).toBe(0);
+  });
+
+  it("when the backend keeps failing, the client gets an OpenAI-shaped 503 it can retry", async () => {
+    const t = await createTenant(h, { keys: [{}] });
+    h.mock.script(t.poolSecrets[0]!, { json: BACKEND_ERROR }, { json: BACKEND_ERROR }, { json: BACKEND_ERROR });
+    const res = await call(h, t, "chat", { stream: false });
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as { error?: { code?: string; message?: string } };
+    expect(typeof body.error).toBe("object");
+    expect(body.error?.code).toBe("upstream_unavailable");
+  });
+
+  it("a backend error after output started is rewritten into the OpenAI error object", async () => {
+    const t = await createTenant(h, { keys: [{}] });
+    const first = sseData({ id: "c1", object: "chat.completion.chunk", choices: [{ index: 0, delta: { role: "assistant", content: "Hi" } }] });
+    h.mock.script(t.poolSecrets[0]!, { events: [first, sseData(BACKEND_ERROR)] });
+    const text = await (await call(h, t, "chat")).text();
+    expect(text).toContain('"content":"Hi"');
+    expect(text).toContain('"error":{"message":"Error from inference backend: Internal server error"');
+    expect(text).not.toContain('"error":"Error from inference backend');
+  });
+
   it("G-20: a 401 from upstream removes the key, alerts, and retries on another key", async () => {
     const t = await createTenant(h, { keys: [{ weight: 100 }, { weight: 1 }] });
     h.mock.script(t.poolSecrets[0]!, { status: 401 });
@@ -478,12 +533,13 @@ describe("upstream key pool", () => {
 
   it("G-24: fallback providers are used only when the plan allows it", async () => {
     const noFb = await createTenant(h, { fallbackKeys: 1 });
-    h.mock.script(noFb.poolSecrets[0]!, { status: 503 });
+    // The primary keeps failing (a single 5xx is now retried on the same key).
+    h.mock.script(noFb.poolSecrets[0]!, { status: 503 }, { status: 503 }, { status: 503 });
     expect((await call(h, noFb, "chat", { stream: false })).status).toBe(503);
     expect(h.mock.requestsFor(noFb.fallbackSecrets[0]!)).toHaveLength(0);
 
     const withFb = await createTenant(h, { fallbackKeys: 1, plan: { fallbackEnabled: true } });
-    h.mock.script(withFb.poolSecrets[0]!, { status: 503 });
+    h.mock.script(withFb.poolSecrets[0]!, { status: 503 }, { status: 503 }, { status: 503 });
     expect((await call(h, withFb, "chat", { stream: false })).status).toBe(200);
     expect(h.mock.requestsFor(withFb.fallbackSecrets[0]!)[0]!.body.model).toBe(`${withFb.models[0]}-fallback`);
   });

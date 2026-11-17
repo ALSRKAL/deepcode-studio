@@ -30,6 +30,26 @@ import type { PoolKey, PoolManager } from "./pool.js";
 import type { SyncService } from "./sync.js";
 import { aggregateChatCompletionStream, FAST_MODE_MULTIPLIER, FAST_PREFIX, isInfiniteModel } from "./synthetic.js";
 import { SseFramer, type PreparedBody, type ProtocolAdapter, type RequestContext } from "./protocols/index.js";
+import {
+  isUpstreamErrorPayload,
+  normalizeStreamErrorEvent,
+  parseJson,
+  probeEventStream,
+  replayBody,
+  upstreamErrorMessage,
+} from "./upstreamErrors.js";
+
+function emptyIterator(): AsyncIterator<Buffer> {
+  return { next: async () => ({ value: undefined, done: true }) };
+}
+
+/** Wait before retrying a backend error; resolves early when the client goes away. */
+function backoff(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const t = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => (clearTimeout(t), resolve()), { once: true });
+  });
+}
 export interface ProxyDeps {
   config: GatewayConfig;
   auth: Authenticator;
@@ -306,7 +326,10 @@ async function dispatch(
   let attempts = 0;
   let soonestCooldownMs = -1;
 
-  for (const route of opts.routes) {
+  for (const [routeIndex, route] of opts.routes.entries()) {
+    // Backend errors on this route; after two, a plan with a fallback provider moves on.
+    let routeBackendErrors = 0;
+    const hasNextRoute = routeIndex < opts.routes.length - 1;
     while (attempts < deps.config.maxAttempts) {
       const sel = await deps.pool.select(route.provider.id, opts.model, opts.requestId, exclude);
       if (!sel.key) {
@@ -364,11 +387,62 @@ async function dispatch(
 
       const status = res.statusCode;
       if (status >= 200 && status < 300) {
-        return { res, key, route, prepared, releaseKey: sel.release, attempts, ttfbMs: deps.now() - opts.startedAt };
+        // Synthetic can answer 200 with `{"error":"Error from inference backend: …"}`
+        // (whole body, or the first SSE event). Look before committing: a failure that
+        // produced no output is retried instead of reaching the client as a "success".
+        const isSse = String(res.headers["content-type"] ?? "").includes("text/event-stream");
+        let backendError: string | null = null;
+        try {
+          if (isSse) {
+            const probe = await probeEventStream(res.body as unknown as AsyncIterable<Buffer>);
+            if (probe.kind === "error") backendError = probe.message;
+            else (res as { body: unknown }).body = replayBody(probe.buffered, probe.rest, probe.ended);
+          } else {
+            const text = await res.body.text();
+            const parsed = parseJson(text);
+            if (isUpstreamErrorPayload(parsed)) backendError = upstreamErrorMessage(parsed);
+            else (res as { body: unknown }).body = replayBody([Buffer.from(text)], emptyIterator(), true);
+          }
+        } catch (err) {
+          await sel.release();
+          if (opts.signal.aborted) throw new GatewayHttpError("bad_request", "Client closed the request.", { httpStatus: 499 });
+          await deps.pool.recordFailure(key, err instanceof Error ? err.name : "network");
+          continue;
+        }
+        if (backendError === null) {
+          return { res, key, route, prepared, releaseKey: sel.release, attempts, ttfbMs: deps.now() - opts.startedAt };
+        }
+        await sel.release();
+        opts.log.warn("upstream backend error in a 200 response; retrying", {
+          poolKeyId: key.id,
+          model: opts.model,
+          attempt: attempts,
+          message: sanitizeUpstreamMessage(backendError, deps.secrets).slice(0, 200),
+        });
+        // The model backend failed, not the key: reuse it (possibly the only one) after a pause.
+        routeBackendErrors += 1;
+        if (hasNextRoute && routeBackendErrors >= 2) break;
+        exclude.delete(key.id);
+        await backoff(400 * attempts, opts.signal);
+        continue;
+      }
+
+      // 5xx from the model backend is not the key's fault: do not cool the key (with a
+      // single pool key that turned one backend hiccup into minutes of outage for every
+      // customer). Retry, on the same key if it is the only one, after a short pause.
+      if (status >= 500) {
+        await res.body.dump({ limit: 64 * 1024 }).catch(() => {});
+        await sel.release();
+        opts.log.warn("upstream 5xx; retrying", { poolKeyId: key.id, model: opts.model, httpStatus: status, attempt: attempts });
+        routeBackendErrors += 1;
+        if (hasNextRoute && routeBackendErrors >= 2) break;
+        exclude.delete(key.id);
+        await backoff(400 * attempts, opts.signal);
+        continue;
       }
 
       // 402 = that upstream key has no subscription/credits left: cool it, use another.
-      if (status === 429 || status === 401 || status === 402 || status === 403 || status >= 500 || status === 408) {
+      if (status === 429 || status === 401 || status === 402 || status === 403 || status === 408) {
         await res.body.dump({ limit: 64 * 1024 }).catch(() => {});
         await sel.release();
         if (status === 429) {
@@ -544,7 +618,12 @@ function streamResponse(
   };
 
   const handle = (raw: ReturnType<SseFramer["push"]>, out: string[]) => {
-    for (const ev of raw) {
+    for (const original of raw) {
+      // A backend error after output started: give clients the OpenAI error object
+      // instead of a bare string they cannot parse.
+      const normalized = adapter.apiType === "openai-chat-completions" ? normalizeStreamErrorEvent(original.data) : null;
+      const ev = normalized ? { ...original, raw: normalized } : original;
+      if (normalized) s.log.warn("upstream error event mid-stream", { model: s.base.model });
       const { forward, terminal } = state.onEvent(ev);
       if (!forward) continue;
       // Once a terminal event is held, everything after it is held too, to keep order.
