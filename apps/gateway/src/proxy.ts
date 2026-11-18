@@ -15,6 +15,7 @@ import { assertCanSpend, remainingCredits, type AuthSnapshot, type Authenticator
 import type { Catalog, Route } from "./catalog.js";
 import type { GatewayConfig } from "./config.js";
 import { errorResponse, GatewayHttpError } from "./errors.js";
+import { contextTooLargeMessage, shrinkToFit } from "./oversize.js";
 import {
   clientIp,
   parseRetryAfter,
@@ -31,6 +32,8 @@ import type { SyncService } from "./sync.js";
 import { aggregateChatCompletionStream, FAST_MODE_MULTIPLIER, FAST_PREFIX, isInfiniteModel } from "./synthetic.js";
 import { SseFramer, type PreparedBody, type ProtocolAdapter, type RequestContext } from "./protocols/index.js";
 import {
+  classifyBackendError,
+  isContextOverflowMessage,
   isUpstreamErrorPayload,
   normalizeStreamErrorEvent,
   parseJson,
@@ -38,6 +41,13 @@ import {
   replayBody,
   upstreamErrorMessage,
 } from "./upstreamErrors.js";
+
+/** "Context limit exceeded: …" plus the provider's own token counts, which agents read. */
+function contextOverflowMessage(upstreamText: string, secrets: SecretRegistry): string {
+  const detail = sanitizeUpstreamMessage(upstreamText.trim().startsWith("{") ? upstreamText : JSON.stringify({ error: upstreamText }), secrets)
+    .replace(/^The model provider rejected the request: /, "");
+  return `Context limit exceeded: ${detail} Compact the conversation and retry.`;
+}
 
 function emptyIterator(): AsyncIterator<Buffer> {
   return { next: async () => ({ value: undefined, done: true }) };
@@ -126,7 +136,17 @@ export async function handleProxy(
     snapshot = await deps.auth.authenticate(c.req.raw, clientIp(c, deps.config.trustProxy));
     mark("auth");
     const sub = assertCanSpend(snapshot, deps.now(), deps.config.webOrigin);
-    const { json, bytes } = await readJsonBody(c.req.raw, deps.config.maxRequestBodyBytes);
+    // Read up to the hard cap; a body over the normal limit is shrunk (older images
+    // replaced by a note) instead of being refused (oversize.ts).
+    const read = await readJsonBody(c.req.raw, deps.config.maxRequestBodyHardBytes);
+    const json = read.json;
+    let bytes = read.bytes;
+    if (bytes > deps.config.maxRequestBodyBytes) {
+      const shrunk = shrinkToFit(json, deps.config.maxRequestBodyBytes);
+      if (!shrunk.ok) throw new GatewayHttpError("context_length_exceeded", contextTooLargeMessage(shrunk.bytes));
+      log.info("oversized request shrunk", { fromBytes: bytes, toBytes: shrunk.bytes, removedImages: shrunk.removedImages });
+      bytes = shrunk.bytes;
+    }
     mark("body");
     const ctx: RequestContext = {
       body: json,
@@ -423,6 +443,15 @@ async function dispatch(
           return { res, key, route, prepared, releaseKey: sel.release, attempts, ttfbMs: deps.now() - opts.startedAt };
         }
         await sel.release();
+        // Deterministic failures are not retried: a full context asks the agent to compact,
+        // a request the backend rejected is reported as such.
+        const kind = classifyBackendError(backendError);
+        if (kind === "context") {
+          throw new GatewayHttpError("context_length_exceeded", contextOverflowMessage(backendError, deps.secrets));
+        }
+        if (kind === "client") {
+          throw new GatewayHttpError("bad_request", sanitizeUpstreamMessage(JSON.stringify({ error: backendError }), deps.secrets));
+        }
         opts.log.warn("upstream backend error in a 200 response; retrying", {
           poolKeyId: key.id,
           model: opts.model,
@@ -481,6 +510,12 @@ async function dispatch(
         continue;
       }
       opts.log.info("upstream rejected request", { httpStatus: status, poolKeyId: key.id });
+      if (status === 413) {
+        throw new GatewayHttpError("context_length_exceeded", contextTooLargeMessage(JSON.stringify(prepared.body).length));
+      }
+      if (isContextOverflowMessage(text)) {
+        throw new GatewayHttpError("context_length_exceeded", contextOverflowMessage(text, deps.secrets));
+      }
       throw new GatewayHttpError("bad_request", sanitizeUpstreamMessage(text, deps.secrets), {
         httpStatus: [400, 404, 413, 422].includes(status) ? status : 400,
       });

@@ -76,6 +76,7 @@ export const GATEWAY_ERROR_CODES = [
   "rate_limited",
   "upstream_unavailable",
   "bad_request",
+  "context_length_exceeded",
   "internal",
 ] as const;
 export const GatewayErrorCodeSchema = z.enum(GATEWAY_ERROR_CODES);
@@ -91,6 +92,8 @@ export const GATEWAY_ERROR_STATUS: Record<GatewayErrorCode, number> = {
   rate_limited: 429,
   upstream_unavailable: 503,
   bad_request: 400,
+  // The conversation no longer fits: agents compact it and retry (OpenAI's code name).
+  context_length_exceeded: 400,
   internal: 500,
 };
 

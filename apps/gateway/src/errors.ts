@@ -14,6 +14,7 @@ const DEFAULT_MESSAGES: Record<GatewayErrorCode, string> = {
   rate_limited: "Too many requests. Slow down and retry shortly.",
   upstream_unavailable: "The model provider is temporarily unavailable. Retry shortly.",
   bad_request: "The request is invalid.",
+  context_length_exceeded: "Context limit exceeded: the conversation is too large. Compact it and retry.",
   internal: "Internal error.",
 };
 

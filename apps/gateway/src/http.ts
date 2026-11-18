@@ -1,3 +1,4 @@
+import { contextTooLargeMessage } from "./oversize.js";
 import type { Context } from "hono";
 import { percentUsed, USAGE_HEADERS } from "@deepcode/shared";
 import type { SubscriptionSnapshot } from "./auth.js";
@@ -25,7 +26,7 @@ export function clientIp(c: Context, trustProxy: boolean): string {
 export async function readJsonBody(req: Request, maxBytes: number): Promise<{ json: Record<string, any>; bytes: number }> {
   const declared = Number(req.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > maxBytes) {
-    throw new GatewayHttpError("bad_request", "Request body too large.", { httpStatus: 413 });
+    throw new GatewayHttpError("context_length_exceeded", contextTooLargeMessage(declared));
   }
   if (!req.body) throw new GatewayHttpError("bad_request", "Request body is required.");
   const reader = req.body.getReader();
@@ -37,7 +38,8 @@ export async function readJsonBody(req: Request, maxBytes: number): Promise<{ js
     total += value.byteLength;
     if (total > maxBytes) {
       await reader.cancel();
-      throw new GatewayHttpError("bad_request", "Request body too large.", { httpStatus: 413 });
+      // Not a dead end: agents answer context_length_exceeded by compacting and retrying.
+      throw new GatewayHttpError("context_length_exceeded", contextTooLargeMessage(total));
     }
     chunks.push(value);
   }

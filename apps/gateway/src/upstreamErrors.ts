@@ -135,3 +135,26 @@ export function replayBody(buffered: Buffer[], rest: AsyncIterator<Buffer>, ende
     },
   });
 }
+
+/**
+ * Synthetic's context overflow: `400 {"error":"Error from inference backend: 400 The input
+ * (700021 tokens) is longer than the model's context length (524288 tokens)."}`
+ * (measured 2026-11-18). That wording has neither "exceeded" nor "too long", so agents
+ * did not recognise it and the session died instead of compacting.
+ */
+const CONTEXT_OVERFLOW =
+  /longer than the model'?s context length|maximum context length|context (length|window) (is |was )?(exceeded|too)|exceeds? (the )?(model'?s )?(maximum )?context|prompt is too long|too many (input )?tokens/i;
+
+export function isContextOverflowMessage(message: string): boolean {
+  return CONTEXT_OVERFLOW.test(message);
+}
+
+export type BackendErrorKind = "context" | "client" | "transient";
+
+/** Decide whether a backend error is worth retrying. */
+export function classifyBackendError(message: string): BackendErrorKind {
+  if (isContextOverflowMessage(message)) return "context";
+  // "Error from inference backend: 400 …" — the backend rejected this request itself.
+  if (/backend:?\s*4\d\d\b/i.test(message)) return "client";
+  return "transient";
+}

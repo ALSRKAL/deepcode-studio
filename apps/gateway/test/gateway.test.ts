@@ -759,16 +759,73 @@ describe("metrics (docs/plan/04 Step A)", () => {
 });
 
 describe("misc", () => {
-  it("rejects oversized and non-JSON bodies", async () => {
+  it("rejects non-JSON bodies; a body that cannot be shrunk asks the agent to compact (not a dead-end 413)", async () => {
     const t = await createTenant(h);
     const big = await call(h, t, "chat", { body: { pad: "x".repeat(2 * 1024 * 1024) } });
-    expect(big.status).toBe(413);
+    expect(big.status).toBe(400);
+    const err = await errorOf(big);
+    expect(err.code).toBe("context_length_exceeded");
+    // Agents look for "context … exceeded" (compact) and "image … too large" (strip media).
+    expect(err.body.error.message).toMatch(/context limit exceeded/i);
+    expect(err.body.error.message).toMatch(/images?.*too large/i);
+    const huge = await call(h, t, "chat", { body: { pad: "x".repeat(4 * 1024 * 1024) } });
+    expect((await errorOf(huge)).code).toBe("context_length_exceeded");
     const bad = await h.gw.app.request("/v1/chat/completions", {
       method: "POST",
       headers: { authorization: `Bearer ${t.apiKey}`, "x-forwarded-for": t.ip, "content-type": "application/json" },
       body: "{not json",
     });
     expect((await errorOf(bad)).code).toBe("bad_request");
+  });
+
+  // Customer report 2026-11-18: "Request body too large" (413) killed long sessions full of screenshots.
+  it("an oversized session is shrunk: older images become a note, the newest stay, the turn succeeds", async () => {
+    const t = await createTenant(h);
+    const img = (n: number) => ({ type: "image_url", image_url: { url: `data:image/png;base64,${String(n).repeat(400 * 1024)}` } });
+    const messages = [0, 1, 2, 3, 4].map((n) => ({ role: "user", content: [{ type: "text", text: `shot ${n}` }, img(n)] }));
+    const res = await call(h, t, "chat", { stream: false, body: { messages } });
+    expect(res.status).toBe(200);
+    const sent = h.mock.requests.at(-1)!.body as { messages: Array<{ content: Array<{ type: string; text?: string }> }> };
+    const kinds = sent.messages.map((m) => m.content[1]!.type);
+    expect(kinds).toEqual(["text", "text", "text", "image_url", "image_url"]);
+    expect(sent.messages[0]!.content[1]!.text).toMatch(/earlier image was removed/);
+    expect(JSON.stringify(sent).length).toBeLessThanOrEqual(1024 * 1024);
+  });
+
+  // Synthetic's real wording (measured 2026-11-18); agents did not recognise it before.
+  const OVERFLOW = "Error from inference backend: 400 The input (700021 tokens) is longer than the model's context length (524288 tokens).";
+
+  it("Synthetic's context-length error becomes context_length_exceeded so the agent compacts (not retried)", async () => {
+    const t = await createTenant(h, { keys: [{}] });
+    h.mock.script(t.poolSecrets[0]!, { status: 400, body: JSON.stringify({ error: OVERFLOW }) });
+    const err = await errorOf(await call(h, t, "chat", { stream: false }));
+    expect(err.code).toBe("context_length_exceeded");
+    expect(err.body.error.message).toMatch(/^Context limit exceeded: .*700021 tokens.*524288 tokens/);
+    expect(h.mock.requestsFor(t.poolSecrets[0]!)).toHaveLength(1);
+  });
+
+  it("the same overflow inside a 200 body is not retried as a backend hiccup", async () => {
+    const t = await createTenant(h, { keys: [{}] });
+    h.mock.script(t.poolSecrets[0]!, { json: { error: OVERFLOW } });
+    const err = await errorOf(await call(h, t, "chat", { stream: false }));
+    expect(err.code).toBe("context_length_exceeded");
+    expect(h.mock.requestsFor(t.poolSecrets[0]!)).toHaveLength(1);
+  });
+
+  it("a backend 4xx inside a 200 body is reported, not retried", async () => {
+    const t = await createTenant(h, { keys: [{}] });
+    h.mock.script(t.poolSecrets[0]!, { json: { error: "Error from inference backend: 400 tools[0].function.parameters is invalid" } });
+    const err = await errorOf(await call(h, t, "chat", { stream: false }));
+    expect(err.code).toBe("bad_request");
+    expect(err.body.error.message).toMatch(/parameters is invalid/);
+    expect(h.mock.requestsFor(t.poolSecrets[0]!)).toHaveLength(1);
+  });
+
+  it("an upstream 413 asks the agent to compact instead of failing the session", async () => {
+    const t = await createTenant(h, { keys: [{}] });
+    h.mock.script(t.poolSecrets[0]!, { status: 413, body: JSON.stringify({ error: { message: "payload too large" } }) });
+    const err = await errorOf(await call(h, t, "chat", { stream: false }));
+    expect(err.code).toBe("context_length_exceeded");
   });
 
   it("google streaming without alt=sse is refused", async () => {

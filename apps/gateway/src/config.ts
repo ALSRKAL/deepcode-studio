@@ -18,6 +18,8 @@ const EnvSchema = z.object({
   UPSTREAM_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
   UPSTREAM_BODY_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
   MAX_REQUEST_BODY_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
+  // Bounded by the gateway heap (160 MB on the free host): parse + shrink stays well under it.
+  MAX_REQUEST_BODY_HARD_BYTES: z.coerce.number().int().positive().default(24 * 1024 * 1024),
   TRUST_PROXY: z
     .enum(["true", "false"])
     .default("false")
@@ -53,6 +55,8 @@ export interface GatewayConfig {
   requestTimeoutMs: number;
   bodyIdleTimeoutMs: number;
   maxRequestBodyBytes: number;
+  /** Bodies between the normal limit and this are read and shrunk; above it, compaction is asked for. */
+  maxRequestBodyHardBytes: number;
   trustProxy: boolean;
   logLevel: "debug" | "info" | "warn" | "error";
   /** Max upstream attempts per request (doc 02 §5.2). */
@@ -95,6 +99,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     requestTimeoutMs: e.UPSTREAM_REQUEST_TIMEOUT_MS,
     bodyIdleTimeoutMs: e.UPSTREAM_BODY_IDLE_TIMEOUT_MS,
     maxRequestBodyBytes: e.MAX_REQUEST_BODY_BYTES,
+    maxRequestBodyHardBytes: Math.max(e.MAX_REQUEST_BODY_HARD_BYTES, e.MAX_REQUEST_BODY_BYTES),
     trustProxy: e.TRUST_PROXY,
     logLevel: e.LOG_LEVEL,
     maxAttempts: 3,

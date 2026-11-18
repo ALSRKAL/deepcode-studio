@@ -52,6 +52,7 @@ export async function startHarness(overrides: Partial<GatewayConfig> = {}): Prom
     requestTimeoutMs: 5_000,
     bodyIdleTimeoutMs: 10_000,
     maxRequestBodyBytes: 1024 * 1024,
+    maxRequestBodyHardBytes: 3 * 1024 * 1024,
     trustProxy: true,
     logLevel: "debug",
     maxAttempts: 3,
