@@ -50,11 +50,20 @@ if command -v tailscale >/dev/null && tailscale status >/dev/null 2>&1; then
   host=$(tailscale status --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')
   echo
   echo "Tailscale is connected: $host"
-  echo "Turn on the public tunnel (once; it survives restarts):"
-  echo "    sudo tailscale funnel --bg 10000"
-  echo
-  echo "Then on Render (service → Environment) set only:"
-  echo "    HOME_ORIGIN=$host"
+  if tailscale funnel status 2>/dev/null | grep -q "Funnel on"; then
+    echo "Public tunnel: on."
+    who=$(curl -s -m 20 -D - -o /dev/null https://deepcode-2sfl.onrender.com/readyz | tr -d '\r' | awk -F': ' 'tolower($1)=="x-deepcode-server"{print $2}')
+    case "$who" in
+      home) echo "Live site is served by this computer. All set." ;;
+      cloud) echo "Live site is served by Render right now; it switches here within a few seconds of this server being ready." ;;
+      *) echo "Live site did not answer; check https://deepcode-2sfl.onrender.com" ;;
+    esac
+  else
+    echo "Turn on the public tunnel (once; it survives restarts):"
+    echo "    sudo tailscale funnel --bg 10000"
+    echo "Then on Render (service → Environment) set only:"
+    echo "    HOME_ORIGIN=$host"
+  fi
 else
   echo
   echo "Next: install Tailscale and sign in (see README.md), then run ./setup.sh again."
