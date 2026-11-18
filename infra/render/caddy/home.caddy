@@ -1,0 +1,28 @@
+# Home mode (your PC behind Tailscale Funnel): serve everything, but only for requests
+# relayed by the DeepCode front server, which adds the shared X-DeepCode-Edge secret.
+{
+	admin off
+	auto_https off
+	# The platform terminates TLS in front of us.
+	servers {
+		protocols h1 h2c
+		# Render's load balancer (private range) sets X-Forwarded-Proto: https;
+		# trust it so the apps behind us see the public scheme, not http.
+		trusted_proxies static private_ranges
+	}
+}
+
+:{$PORT:10000} {
+	# The container's own health check (127.0.0.1 inside it) is the only exception.
+	@notFromFront {
+		not header X-DeepCode-Edge {$HOME_EDGE_TOKEN}
+		not remote_ip 127.0.0.1/32
+	}
+	# handle blocks are exclusive and run in order: the guard is checked before any route.
+	handle @notFromFront {
+		respond "Not found" 404
+	}
+	handle {
+		import /app/caddy/routes.caddy
+	}
+}

@@ -1,0 +1,24 @@
+# DeepCode Studio on your own computer, as the main server behind Tailscale Funnel.
+# The Render server stays the public address and takes over when this one is off.
+# See README.md in this folder.
+name: deepcode-home
+services:
+  deepcode:
+    build:
+      context: ../..
+      dockerfile: infra/render/Dockerfile
+    image: deepcode-home:latest
+    # Same database, Redis and secrets as production; home.env adds the home role.
+    env_file:
+      - ../render/render.env
+      - ./home.env
+    environment:
+      PORT: "10000"
+      DEEPCODE_ROLE: home
+    ports:
+      # Only this computer (and Tailscale Funnel) can reach it; nothing is opened on the router.
+      - "127.0.0.1:10000:10000"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 20s

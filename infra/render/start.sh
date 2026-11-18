@@ -10,6 +10,26 @@ set -euo pipefail
 export GATEWAY_URL="${GATEWAY_URL:-http://127.0.0.1:8790}"
 export GATEWAY_PORT=8790
 
+# Proxy mode (infra/home/README.md):
+#   DEEPCODE_ROLE=home   your PC behind Tailscale Funnel; only answers the front server.
+#   HOME_ORIGIN=<host>   front (Render): home server first, this container as fallback.
+#   neither              serve everything here (default).
+if [ "${DEEPCODE_ROLE:-}" = "home" ]; then
+  : "${HOME_EDGE_TOKEN:?HOME_EDGE_TOKEN is required in home mode}"
+  CADDY_CONFIG=/app/caddy/home.caddy
+elif [ -n "${HOME_ORIGIN:-}" ] && [ -n "${HOME_EDGE_TOKEN:-}" ]; then
+  # A bare host means HTTPS (Tailscale Funnel); an explicit http:// URL is for local tests.
+  case "$HOME_ORIGIN" in
+    http://*|https://*) export HOME_URL="${HOME_ORIGIN%/}" ;;
+    *) export HOME_URL="https://${HOME_ORIGIN%/}" ;;
+  esac
+  CADDY_CONFIG=/app/caddy/front.caddy
+else
+  CADDY_CONFIG=/app/caddy/origin.caddy
+fi
+export DEEPCODE_SERVER_NAME="$([ "${DEEPCODE_ROLE:-}" = home ] && echo home || echo cloud)"
+echo "[start] proxy mode: $(basename "$CADDY_CONFIG" .caddy)"
+
 echo "[start] running database migrations"
 node /app/gateway/dist/migrate.js
 
@@ -27,7 +47,7 @@ ZCODE_RELAY_HOST=127.0.0.1 ZCODE_RELAY_PORT=8443 ZCODE_RELAY_TRUST_PROXY=1 ZCODE
 RELAY_PID=$!
 
 echo "[start] proxy on :${PORT:-10000}"
-caddy run --config /app/Caddyfile --adapter caddyfile &
+caddy run --config "$CADDY_CONFIG" --adapter caddyfile &
 CADDY_PID=$!
 
 trap 'kill -TERM $GATEWAY_PID $WEB_PID $CADDY_PID $RELAY_PID 2>/dev/null || true' TERM INT

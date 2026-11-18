@@ -46,7 +46,8 @@ COPY --from=caddy /usr/bin/caddy /usr/bin/caddy.cap
 RUN cp /usr/bin/caddy.cap /usr/bin/caddy && rm /usr/bin/caddy.cap && chmod 755 /usr/bin/caddy
 COPY --from=build --chown=node:node /out/gateway ./gateway
 COPY --from=build --chown=node:node /out/web ./web
-COPY --chown=node:node infra/render/Caddyfile infra/render/start.sh ./
+COPY --chown=node:node infra/render/start.sh ./
+COPY --chown=node:node infra/render/caddy ./caddy
 # Phone remote-control relay + its phone page, built from the desktop repo
 # (infra/render/remote/README.md says how to refresh them).
 COPY --chown=node:node infra/render/remote ./remote

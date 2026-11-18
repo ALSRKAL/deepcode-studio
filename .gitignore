@@ -29,3 +29,8 @@ apps/web/test-results/
 apps/web/playwright-report/
 infra/render/secrets.env
 .claude/
+infra/render/render.env
+infra/neon/
+
+*.apk
+infra/home/home.env

@@ -1,0 +1,16 @@
+# Default mode: this container serves everything itself.
+{
+	admin off
+	auto_https off
+	# The platform terminates TLS in front of us.
+	servers {
+		protocols h1 h2c
+		# Render's load balancer (private range) sets X-Forwarded-Proto: https;
+		# trust it so the apps behind us see the public scheme, not http.
+		trusted_proxies static private_ranges
+	}
+}
+
+:{$PORT:10000} {
+	import /app/caddy/routes.caddy
+}
