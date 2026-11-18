@@ -59,9 +59,10 @@ sudo tailscale funnel --bg 10000
 
    إذا طلب تفعيل Funnel في حسابك، افتح الرابط الذي يظهر ووافق.
 
-4. **في Render** (الخدمة deepcode ← Environment) أضف قيمتين ثم انشر:
+4. **في Render** (الخدمة deepcode ← Environment) أضف قيمة واحدة ثم انشر:
    - `HOME_ORIGIN` = اسم جهازك في Tailscale (يطبعه `./setup.sh`، مثل `alsrkal.tail1234.ts.net`)
-   - `HOME_EDGE_TOKEN` = القيمة الموجودة في `infra/home/home.env`
+
+   كلمة السر بين Render وجهازك تُشتق تلقائياً من `GATEWAY_INTERNAL_TOKEN` الموجود عند الطرفين.
 
 بعد النشر سجل Render يكتب `proxy mode: front`.
 

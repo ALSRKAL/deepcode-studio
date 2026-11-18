@@ -14,6 +14,12 @@ export GATEWAY_PORT=8790
 #   DEEPCODE_ROLE=home   your PC behind Tailscale Funnel; only answers the front server.
 #   HOME_ORIGIN=<host>   front (Render): home server first, this container as fallback.
 #   neither              serve everything here (default).
+# The front/home shared secret is derived from GATEWAY_INTERNAL_TOKEN (already identical on
+# both sides), so nothing extra has to be typed into the host; HOME_EDGE_TOKEN overrides it.
+if [ -z "${HOME_EDGE_TOKEN:-}" ] && [ -n "${GATEWAY_INTERNAL_TOKEN:-}" ]; then
+  HOME_EDGE_TOKEN="$(node -e 'process.stdout.write(require("node:crypto").createHmac("sha256", process.env.GATEWAY_INTERNAL_TOKEN).update("deepcode-home-edge").digest("hex"))')"
+  export HOME_EDGE_TOKEN
+fi
 if [ "${DEEPCODE_ROLE:-}" = "home" ]; then
   : "${HOME_EDGE_TOKEN:?HOME_EDGE_TOKEN is required in home mode}"
   CADDY_CONFIG=/app/caddy/home.caddy
