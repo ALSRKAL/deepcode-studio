@@ -23,6 +23,8 @@ fi
 if [ "${DEEPCODE_ROLE:-}" = "home" ]; then
   : "${HOME_EDGE_TOKEN:?HOME_EDGE_TOKEN is required in home mode}"
   CADDY_CONFIG=/app/caddy/home.caddy
+  # Public host for redirects (see caddy/home.caddy), from APP_URL.
+  PUBLIC_HOST="${APP_URL#*://}"; export PUBLIC_HOST="${PUBLIC_HOST%%/*}"
 elif [ -n "${HOME_ORIGIN:-}" ] && [ -n "${HOME_EDGE_TOKEN:-}" ]; then
   # A bare host means HTTPS (Tailscale Funnel); an explicit http:// URL is for local tests.
   case "$HOME_ORIGIN" in

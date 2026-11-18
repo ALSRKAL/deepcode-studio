@@ -23,6 +23,11 @@
 		respond "Not found" 404
 	}
 	handle {
+		# Tailscale Funnel rewrites X-Forwarded-Host to the tailnet name; the app builds
+		# redirects from it, so a bare "/pricing" sent visitors to *.ts.net. This server only
+		# ever serves the public site, so state its public host explicitly.
+		request_header X-Forwarded-Host {$PUBLIC_HOST}
+		request_header X-Forwarded-Proto https
 		import /app/caddy/routes.caddy
 	}
 }
