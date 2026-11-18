@@ -33,6 +33,16 @@ RUN mkdir -p /out/web \
  && cp -r apps/web/.next/static /out/web/apps/web/.next/static \
  && if [ -d apps/web/public ]; then cp -r apps/web/public /out/web/apps/web/public; fi
 
+# Phone remote-control bundle (phone page + relay), published by the desktop repo and
+# pinned by URL + sha256 in infra/render/remote/bundle.env (see infra/render/remote/README.md).
+FROM node:24.22.3-bookworm-slim AS remote
+WORKDIR /dl
+COPY infra/render/remote/bundle.env infra/render/remote/fetch-bundle.mjs ./
+RUN node fetch-bundle.mjs bundle.env remote-web.tar.gz \
+ && mkdir -p /out \
+ && tar -xzf remote-web.tar.gz -C /out \
+ && test -f /out/remote-web/relay.mjs && test -f /out/remote-web/mobile/mobile.html
+
 FROM node:24.22.3-bookworm-slim
 RUN apt-get update \
  && apt-get install -y --no-install-recommends tini ca-certificates \
@@ -48,9 +58,8 @@ COPY --from=build --chown=node:node /out/gateway ./gateway
 COPY --from=build --chown=node:node /out/web ./web
 COPY --chown=node:node infra/render/start.sh ./
 COPY --chown=node:node infra/render/caddy ./caddy
-# Phone remote-control relay + its phone page, built from the desktop repo
-# (infra/render/remote/README.md says how to refresh them).
-COPY --chown=node:node infra/render/remote ./remote
+# Phone remote-control relay + its phone page (downloaded and verified above).
+COPY --from=remote --chown=node:node /out/remote-web ./remote
 RUN chmod +x /app/start.sh
 USER node
 ENV PORT=10000
