@@ -41052,9 +41052,14 @@ var RelayPairingRegistry = class {
     target.send(serialized);
     return true;
   }
-  /** 心跳/查询：返回当前 pair_status。 */
+  /**
+   * 心跳/查询：返回当前 pair_status。
+   * 修复（DeepCode Studio，2026-11-18）：只有桌面与手机都连在「这个」relay 上才算 matched。
+   * 此前手机一鉴权就报 matched，即使桌面不在本实例（多实例 / 桌面断线后条目残留），
+   * 手机显示「已连接」但所有请求被 forward 静默丢弃，页面一直是 0 个对话。
+   */
   pairStatusOf(entry) {
-    return entry.pairStatus;
+    return entry.pairStatus === "matched" && entry.device && entry.mobile ? "matched" : "waiting";
   }
   touch(entry) {
     entry.lastSeenAt = Date.now();
@@ -41205,6 +41210,9 @@ async function startRelayServer(options2) {
       if (unbound === "mobile" && entry.device) {
         send(entry.device, { type: "pair_status_ack", pair_status: "waiting" });
       }
+      if (unbound === "device" && entry.mobile) {
+        send(entry.mobile, { type: "pair_status_ack", pair_status: "waiting" });
+      }
     });
     ws.on("error", () => ws.close(1011, "internal"));
     async function handleFrame(socket, clientIp, frame) {
@@ -41251,6 +41259,9 @@ async function startRelayServer(options2) {
           });
           if (role === "mobile" && entry.device) {
             send(entry.device, { type: "pair_status_ack", pair_status: "matched" });
+          }
+          if (role === "device" && entry.mobile) {
+            send(entry.mobile, { type: "pair_status_ack", pair_status: registry2.pairStatusOf(entry) });
           }
           options2.logger.info("relay: authenticated", {
             role,

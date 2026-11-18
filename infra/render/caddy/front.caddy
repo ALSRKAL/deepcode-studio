@@ -14,23 +14,38 @@
 }
 
 :{$PORT:10000} {
-	reverse_proxy 127.0.0.1:10002 127.0.0.1:10001 {
-		lb_policy first
-		lb_try_duration 5s
-		lb_try_interval 250ms
-		fail_duration 20s
-		# Funnel answers 502 itself when the PC's server is down: count that as a failure
-		# at once instead of waiting for the next active check.
-		unhealthy_status 502 503 504
-		health_uri /readyz
-		health_interval 5s
-		health_timeout 4s
-		health_passes 2
-		health_fails 1
-		flush_interval -1
-		transport http {
-			read_timeout 24h
-			write_timeout 24h
+	# Phone remote control: the relay keeps pairings in memory, so the desktop and the phone
+	# must reach the SAME copy. Always serve it here, never on the home server; otherwise a
+	# desktop that connected while the PC was down and a phone that connects later land on
+	# different relays and the phone sees no conversations (fixed 2026-11-18).
+	handle /remote* {
+		reverse_proxy 127.0.0.1:10001 {
+			flush_interval -1
+			transport http {
+				read_timeout 24h
+				write_timeout 24h
+			}
+		}
+	}
+	handle {
+		reverse_proxy 127.0.0.1:10002 127.0.0.1:10001 {
+			lb_policy first
+			lb_try_duration 5s
+			lb_try_interval 250ms
+			fail_duration 20s
+			# Funnel answers 502 itself when the PC's server is down: count that as a failure
+			# at once instead of waiting for the next active check.
+			unhealthy_status 502 503 504
+			health_uri /readyz
+			health_interval 5s
+			health_timeout 4s
+			health_passes 2
+			health_fails 1
+			flush_interval -1
+			transport http {
+				read_timeout 24h
+				write_timeout 24h
+			}
 		}
 	}
 }
