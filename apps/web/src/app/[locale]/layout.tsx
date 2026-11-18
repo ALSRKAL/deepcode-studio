@@ -2,7 +2,7 @@ import { Inter, IBM_Plex_Sans_Arabic, JetBrains_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { notFound } from "next/navigation";
 import type { Metadata, Viewport } from "next";
-import { env } from "@/lib/env";
+import { siteUrl } from "@/lib/siteUrl";
 import arMessages from "../../i18n/messages/ar.json";
 import enMessages from "../../i18n/messages/en.json";
 import "../globals.css";
@@ -61,7 +61,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const metadata = MESSAGES[locale]["metadata"] as { title: string; description: string };
   const other = locale === "ar" ? "en" : "ar";
   // Absolute URLs for link previews (WhatsApp, X, LinkedIn need an absolute og:image).
-  const site = env.APP_URL.replace(/\/$/, "");
+  const site = siteUrl();
   return {
     metadataBase: new URL(site),
     title: { default: metadata.title, template: `%s · DeepCode Studio` },

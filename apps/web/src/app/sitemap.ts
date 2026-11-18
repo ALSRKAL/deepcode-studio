@@ -1,11 +1,14 @@
 import type { MetadataRoute } from "next";
-import { env } from "@/lib/env";
+import { siteUrl } from "@/lib/siteUrl";
+
+// Built per request: the site address comes from the host at run time.
+export const dynamic = "force-dynamic";
 
 const PAGES = ["", "/pricing", "/download", "/docs", "/changelog", "/legal/terms", "/legal/privacy"];
 
 /** Both languages of every public page, each linked to its counterpart. */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const site = env.APP_URL.replace(/\/$/, "");
+  const site = siteUrl();
   return PAGES.flatMap((path) =>
     (["ar", "en"] as const).map((locale) => ({
       url: `${site}/${locale}${path}`,
