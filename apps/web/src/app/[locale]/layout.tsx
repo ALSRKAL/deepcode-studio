@@ -1,5 +1,6 @@
 import { Inter, IBM_Plex_Sans_Arabic, JetBrains_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
+import { setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import type { Metadata, Viewport } from "next";
 import { siteUrl } from "@/lib/siteUrl";
@@ -30,6 +31,9 @@ export default async function LocaleLayout({
 }) {
   const { locale } = await params;
   if (!LOCALES.includes(locale as (typeof LOCALES)[number])) notFound();
+  // Lets next-intl read the locale from the segment instead of request headers,
+  // so public pages under this layout can be cached (see i18n/request.ts).
+  setRequestLocale(locale);
   const messages = MESSAGES[locale as (typeof LOCALES)[number]];
   return (
     <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"} suppressHydrationWarning>
@@ -45,9 +49,6 @@ export default async function LocaleLayout({
   );
 }
 
-export async function generateStaticParams() {
-  return LOCALES.map((locale) => ({ locale }));
-}
 
 /** Light theme is the only theme (owner decision 2026-11-15); browser UI matches. */
 export const viewport: Viewport = {

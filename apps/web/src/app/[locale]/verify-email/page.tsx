@@ -16,3 +16,6 @@ export default async function VerifyEmailPage({ params }: { params: Promise<{ lo
     </main>
   );
 }
+
+// Per-user / token pages: never cached (see [locale]/layout.tsx).
+export const dynamic = "force-dynamic";

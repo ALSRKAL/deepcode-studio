@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { SignedInSwitch } from "@/components/signed-in";
 import { plans, SYNTHETIC_MODELS } from "@deepcode/db";
 import { Card, Badge, Num } from "@/components/ui/primitives";
 import { formatPrice } from "@/lib/money";
@@ -15,11 +16,11 @@ function modelNames(ids: string[]): Array<{ id: string; name: string; real: stri
 export async function PricingCards({
   plans: rows,
   locale,
-  signedIn = false,
+  signedIn,
 }: {
   plans: Array<typeof plans.$inferSelect>;
   locale: string;
-  /** Signed-in visitors pick a plan in billing; others start at sign-up. */
+  /** Signed-in visitors pick a plan in billing; others start at sign-up. Undefined: decided in the browser. */
   signedIn?: boolean;
 }) {
   const t = await getTranslations({ locale: locale as "ar" | "en", namespace: "pricing" });
@@ -70,14 +71,17 @@ export async function PricingCards({
               ))}
             </ul>
           </div>
-          <ButtonLink
-            href={signedIn ? `/${locale}/dashboard/billing` : `/${locale}/sign-up`}
-            variant={i === featured ? "primary" : "secondary"}
-            size="sm"
-            className="mt-auto w-full"
-          >
-            {plan.priceCents === 0 ? t("startFree") : t("choose")}
-          </ButtonLink>
+          {(() => {
+            const link = (href: string) => (
+              <ButtonLink href={href} variant={i === featured ? "primary" : "secondary"} size="sm" className="mt-auto w-full">
+                {plan.priceCents === 0 ? t("startFree") : t("choose")}
+              </ButtonLink>
+            );
+            const billing = link(`/${locale}/dashboard/billing`);
+            const signUp = link(`/${locale}/sign-up`);
+            if (signedIn === undefined) return <SignedInSwitch signedIn={billing} signedOut={signUp} />;
+            return signedIn ? billing : signUp;
+          })()}
         </Card>
       ))}
     </div>

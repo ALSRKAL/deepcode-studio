@@ -1,5 +1,4 @@
-import { getTranslations } from "next-intl/server";
-import { currentUser } from "@/lib/guards";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 
@@ -16,7 +15,8 @@ export default async function LegalPage({
 }: {
   params: Promise<{ locale: string; slug: string }>;
 }) {
-  const { slug } = await params;
+  const { slug, locale } = await params;
+  setRequestLocale(locale);
   const t = await getTranslations("legal");
   if (!SLUGS.includes(slug as Slug)) {
     return (
@@ -25,13 +25,12 @@ export default async function LegalPage({
       </main>
     );
   }
-  const user = await currentUser();
   const titleKey = slug === "acceptable-use" ? "acceptableUse" : slug;
   const title = t.has(titleKey) ? t(titleKey) : slug;
 
   return (
     <>
-      <SiteHeader signedIn={user !== null} />
+      <SiteHeader />
       <main className="mx-auto max-w-3xl px-4 py-16 grid gap-6">
         <h1 className="text-scale-lg font-semibold">{title}</h1>
         {slug === "licenses" ? (

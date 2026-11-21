@@ -34,3 +34,6 @@ infra/neon/
 
 *.apk
 infra/home/home.env
+
+# Home server runtime data
+infra/home/storage/

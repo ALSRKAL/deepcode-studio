@@ -54,3 +54,6 @@ export default async function DesktopAuthDonePage({
     </main>
   );
 }
+
+// Per-user / token pages: never cached (see [locale]/layout.tsx).
+export const dynamic = "force-dynamic";

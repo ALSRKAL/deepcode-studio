@@ -74,6 +74,7 @@ export function createGateway(
     streams: { active: 0 },
   };
   const metrics = new Metrics({ config, db: handle.db, redis, pool: deps.pool, settlement: deps.settlement, streams: deps.streams, now });
+  deps.metrics = metrics;
 
   const app = buildApp(deps, metrics, logger);
   const timers: NodeJS.Timeout[] = [];

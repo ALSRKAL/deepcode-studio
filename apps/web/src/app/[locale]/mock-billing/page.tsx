@@ -71,3 +71,6 @@ export default async function MockBillingPage({
     </main>
   );
 }
+
+// Per-user / token pages: never cached (see [locale]/layout.tsx).
+export const dynamic = "force-dynamic";

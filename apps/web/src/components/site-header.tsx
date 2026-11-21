@@ -1,11 +1,16 @@
 import Link from "next/link";
+import { SignedInSwitch } from "@/components/signed-in";
 import { getLocale, getTranslations } from "next-intl/server";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { ButtonLink } from "@/components/ui/button";
 import { BrandMark, BrandWordmark } from "@/components/brand";
 
 /** Site header — the 1px cyan rule is the active-state indicator (§1.6 signature). */
-export async function SiteHeader({ signedIn }: { signedIn: boolean }) {
+/**
+ * `signedIn` known on the server (dynamic pages) renders that state; left undefined
+ * (cached public pages) the browser decides via SignedInSwitch.
+ */
+export async function SiteHeader({ signedIn }: { signedIn?: boolean }) {
   const t = await getTranslations("nav");
   const locale = await getLocale();
   // Locale-prefixed hrefs: no extra redirect through the middleware per click.
@@ -36,20 +41,25 @@ export async function SiteHeader({ signedIn }: { signedIn: boolean }) {
         </nav>
         <div className="ms-auto flex items-center gap-2">
           <LocaleSwitcher />
-          {signedIn ? (
-            <ButtonLink href={L("/dashboard")} variant="secondary" size="sm">
-              {t("dashboard")}
-            </ButtonLink>
-          ) : (
-            <>
-              <ButtonLink href={L("/sign-in")} variant="ghost" size="sm" className="max-sm:hidden whitespace-nowrap">
-                {t("signIn")}
+          {(() => {
+            const dashboardLink = (
+              <ButtonLink href={L("/dashboard")} variant="secondary" size="sm">
+                {t("dashboard")}
               </ButtonLink>
-              <ButtonLink href={L("/sign-up")} variant="primary" size="sm" className="whitespace-nowrap">
-                {t("signUp")}
-              </ButtonLink>
-            </>
-          )}
+            );
+            const signInLinks = (
+              <>
+                <ButtonLink href={L("/sign-in")} variant="ghost" size="sm" className="max-sm:hidden whitespace-nowrap">
+                  {t("signIn")}
+                </ButtonLink>
+                <ButtonLink href={L("/sign-up")} variant="primary" size="sm" className="whitespace-nowrap">
+                  {t("signUp")}
+                </ButtonLink>
+              </>
+            );
+            if (signedIn === undefined) return <SignedInSwitch signedIn={dashboardLink} signedOut={signInLinks} />;
+            return signedIn ? dashboardLink : signInLinks;
+          })()}
         </div>
       </div>
     </header>

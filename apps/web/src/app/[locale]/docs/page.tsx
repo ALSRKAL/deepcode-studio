@@ -1,5 +1,4 @@
-import { getTranslations } from "next-intl/server";
-import { currentUser } from "@/lib/guards";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Card, EmptyState } from "@/components/ui/primitives";
@@ -7,16 +6,16 @@ import { LtrIsland } from "@/components/ltr-island";
 
 /** Docs (docs/plan/03 §2 /docs/…): quick start, gateway API — Phase 2b stubs with real content. */
 export default async function DocsPage({ params }: { params: Promise<{ locale: string }> }) {
-  await params;
+  const { locale } = await params;
+  setRequestLocale(locale);
   const t = await getTranslations("keys");
   const p = await getTranslations("pricing");
   const nav = await getTranslations("nav");
-  const user = await currentUser();
   const gatewayUrl = (process.env.NEXT_PUBLIC_GATEWAY_URL ?? process.env.GATEWAY_URL ?? "http://127.0.0.1:8790").replace(/\/$/, "");
 
   return (
     <>
-      <SiteHeader signedIn={user !== null} />
+      <SiteHeader />
       <main className="mx-auto max-w-3xl px-4 py-16 grid gap-8">
         <h1 className="text-scale-lg font-semibold">{nav("docs")}</h1>
 
@@ -45,4 +44,13 @@ curl ${gatewayUrl}/v1/chat/completions \\
       <SiteFooter />
     </>
   );
+}
+
+// Public, identical for every visitor: rendered on first request, then served from
+// cache and refreshed at most every 60 s (2026-11-21: rendering per visit gave 11 req/s
+// at 10 s latency under load). The empty list enables that runtime cache without
+// prerendering at build time (the image build has no database).
+export const revalidate = 60;
+export function generateStaticParams() {
+  return [];
 }

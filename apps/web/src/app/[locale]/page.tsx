@@ -1,8 +1,8 @@
-import { getTranslations } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { and, eq } from "drizzle-orm";
 import { plans, SYNTHETIC_MODELS, TRIAL_PLAN } from "@deepcode/db";
 import { db } from "@/lib/db";
-import { currentUser } from "@/lib/guards";
+import { SignedInSwitch } from "@/components/signed-in";
 import { env } from "@/lib/env";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -33,10 +33,10 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 
 export default async function LandingPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
+  setRequestLocale(locale);
   const t = await getTranslations("home");
   const f = await getTranslations("faq");
   const l = await getTranslations("landing");
-  const user = await currentUser();
   const publicPlans = await db().db.select().from(plans).where(and(eq(plans.isPublic, true))).orderBy(plans.sortOrder);
 
   const planName = (p: (typeof publicPlans)[number]) => (locale === "ar" ? p.nameAr : p.nameEn);
@@ -65,11 +65,10 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
     [f("offline"), f("offlineBody")],
     [f("zcode"), f("zcodeBody")],
   ];
-  const trialHref = user ? `/${locale}/dashboard` : `/${locale}/sign-up`;
 
   return (
     <>
-      <SiteHeader signedIn={user !== null} />
+      <SiteHeader />
       <main>
         {/* 1 — Hero */}
         <section className="relative overflow-hidden">
@@ -85,9 +84,10 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
             </h1>
             <p className="mt-5 max-w-2xl text-[17px] leading-8 text-fg-muted">{t("heroSub")}</p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <ButtonLink href={trialHref} size="lg">
-                {t("ctaTrial")}
-              </ButtonLink>
+              <SignedInSwitch
+                signedIn={<ButtonLink href={`/${locale}/dashboard`} size="lg">{t("ctaTrial")}</ButtonLink>}
+                signedOut={<ButtonLink href={`/${locale}/sign-up`} size="lg">{t("ctaTrial")}</ButtonLink>}
+              />
               <ButtonLink href={`/${locale}/download`} variant="secondary" size="lg">
                 {t("ctaDownload")}
               </ButtonLink>
@@ -263,7 +263,7 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
             <h2 className="mt-4 text-display-sm font-semibold tracking-[-0.01em]">{t("pricingTitle")}</h2>
             {env.TRIAL_ENABLED ? <TrialOffer /> : null}
             <div className="mt-8">
-              <PricingCards plans={publicPlans} locale={locale} signedIn={user !== null} />
+              <PricingCards plans={publicPlans} locale={locale} />
             </div>
           </div>
         </section>
@@ -291,9 +291,10 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
             <h2 className="max-w-2xl text-display-sm font-semibold tracking-[-0.01em]">{t("finalTitle")}</h2>
             <p className="mt-4 max-w-xl text-[16px] leading-7 text-ink-muted">{t("finalSub")}</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <ButtonLink href={trialHref} size="lg" className="!bg-accent-glow !text-ink hover:!bg-[#67e8f9]">
-                {t("ctaTrial")}
-              </ButtonLink>
+              <SignedInSwitch
+                signedIn={<ButtonLink href={`/${locale}/dashboard`} size="lg" className="!bg-accent-glow !text-ink hover:!bg-[#67e8f9]">{t("ctaTrial")}</ButtonLink>}
+                signedOut={<ButtonLink href={`/${locale}/sign-up`} size="lg" className="!bg-accent-glow !text-ink hover:!bg-[#67e8f9]">{t("ctaTrial")}</ButtonLink>}
+              />
               <ButtonLink href={`/${locale}/download`} size="lg" variant="secondary" className="!border-ink-line !bg-transparent !text-ink-fg hover:!bg-ink-3">
                 {t("ctaDownload")}
               </ButtonLink>
@@ -304,4 +305,13 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
       <SiteFooter />
     </>
   );
+}
+
+// Public, identical for every visitor: rendered on first request, then served from
+// cache and refreshed at most every 60 s (2026-11-21: rendering per visit gave 11 req/s
+// at 10 s latency under load). The empty list enables that runtime cache without
+// prerendering at build time (the image build has no database).
+export const revalidate = 60;
+export function generateStaticParams() {
+  return [];
 }
