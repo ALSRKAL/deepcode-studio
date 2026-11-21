@@ -79,3 +79,41 @@ function walk(value: unknown, depth = 0): { chars: number; images: number } {
   }
   return { chars, images };
 }
+
+export interface PromptShape {
+  /** Number of tool definitions sent with the request. */
+  tools: number;
+  toolTokens: number;
+  /** System / developer instructions (top-level `system` or system-role messages). */
+  systemTokens: number;
+  /** Conversation: user, assistant and tool messages. */
+  conversationTokens: number;
+  messages: number;
+}
+
+/**
+ * Where a request's tokens go, as sizes only (never content). Lets us see how much of
+ * every request is the fixed part (instructions + tool schemas) versus the conversation
+ * (2026-11-21: a new session's first request measured 77K tokens median before any work).
+ * Covers OpenAI chat (`messages`, `tools`), Anthropic (`system`, `tools`, `messages`) and
+ * OpenAI responses (`instructions`, `tools`, `input`).
+ */
+export function promptShape(body: unknown): PromptShape {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const tools = Array.isArray(b.tools) ? b.tools : [];
+  const list = (Array.isArray(b.messages) ? b.messages : Array.isArray(b.input) ? b.input : []) as unknown[];
+  let systemTokens = estimateInputTokens(b.system ?? null) + estimateInputTokens(b.instructions ?? null);
+  let conversationTokens = 0;
+  for (const m of list) {
+    const role = (m as { role?: unknown } | null)?.role;
+    if (role === "system" || role === "developer") systemTokens += estimateInputTokens(m);
+    else conversationTokens += estimateInputTokens(m);
+  }
+  return {
+    tools: tools.length,
+    toolTokens: estimateInputTokens(tools),
+    systemTokens,
+    conversationTokens,
+    messages: list.length,
+  };
+}
