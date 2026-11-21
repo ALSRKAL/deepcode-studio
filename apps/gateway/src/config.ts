@@ -25,7 +25,7 @@ const EnvSchema = z.object({
    * compacts at 228K (256K window); 384K leaves a full summary request room and
    * still stops the 490K requests the old 524K client produced. 0 disables the cap.
    */
-  MAX_REQUEST_INPUT_TOKENS: z.coerce.number().int().min(0).default(384_000),
+  MAX_REQUEST_INPUT_TOKENS: z.coerce.number().int().min(0).default(600_000),
   TRUST_PROXY: z
     .enum(["true", "false"])
     .default("false")

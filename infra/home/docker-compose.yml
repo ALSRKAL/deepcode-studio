@@ -23,8 +23,9 @@ services:
       # Passwords live in infra/home/.env (gitignored), never in this file.
       DATABASE_URL: postgresql://deepcode:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/home/.env}@postgres:5432/deepcode
       REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in infra/home/.env}@redis:6379
-      # Estimated input-token ceiling per request (docs/plan/06 §4); 0 disables.
-      MAX_REQUEST_INPUT_TOKENS: "384000"
+      # Estimated input-token guard per request; 0 disables. Above every native window
+      # (512K + estimator slack) so it only stops runaway requests (docs/plan/06 §4, 2026-11-21).
+      MAX_REQUEST_INPUT_TOKENS: "600000"
     ports:
       # Only this computer (and Tailscale Funnel) can reach it; nothing is opened on the router.
       - "127.0.0.1:10000:10000"
