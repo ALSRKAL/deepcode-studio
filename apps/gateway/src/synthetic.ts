@@ -129,31 +129,76 @@ export function aggregateChatCompletionStream(sse: string): Record<string, unkno
 }
 
 export interface QuotaReading {
+  /** The binding headroom: the lower of the request window and the weekly credit. */
   remainingPct: number | null;
   renewsAt: Date | null;
   limit: number | null;
   used: number | null;
+  /** Request window (`subscription`): requests left out of `limit`, as a percentage. */
+  windowRemainingPct: number | null;
+  /** Weekly credit (`planWeeklyLimit.percentRemaining`), regenerating over the week. */
+  weeklyRemainingPct: number | null;
+  weeklyRegenAt: Date | null;
+}
+
+function percent(value: unknown): number | null {
+  // Synthetic reports 0–100. Values <= 1 are real percentages (0.4% left), not fractions:
+  // reading them as fractions made the last 1% look like 99% headroom elsewhere.
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function date(value: unknown): Date | null {
+  if (typeof value !== "string") return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 /**
- * Parses GET /v2/quotas. The documented shape is
- * { subscription: { limit, requests, renewsAt } }; an account without a
- * subscription answers {} (seen 2026-11-16), which reads as "no limit known".
+ * Parses GET /v2/quotas: { subscription: { limit, requests, renewsAt },
+ * planWeeklyLimit: { percentRemaining, nextRegenAt, nextRegenPercent } }. An account
+ * without a subscription answers {} (seen 2026-11-16), which reads as "no limit known".
+ *
+ * 2026-11-21: the weekly credit was ignored. It is a cost budget (cached input counts at
+ * a discount) that regenerates ~2% every 202 minutes, and it is what actually runs out:
+ * it stood at 34% while the 5-hour request window showed 100%, so no alert ever fired.
  */
 export function parseSyntheticQuota(body: unknown): QuotaReading {
-  const sub = (body as { subscription?: Record<string, unknown> } | null)?.subscription;
+  const root = (body ?? {}) as { subscription?: Record<string, unknown>; planWeeklyLimit?: Record<string, unknown> };
+  const sub = root.subscription;
   const limit = typeof sub?.limit === "number" ? sub.limit : null;
   const used = typeof sub?.requests === "number" ? sub.requests : null;
-  const renews = typeof sub?.renewsAt === "string" ? new Date(sub.renewsAt) : null;
-  const remainingPct =
+  const windowRemainingPct =
     limit !== null && limit > 0 && used !== null ? Math.max(0, Math.min(100, Math.round(((limit - used) / limit) * 100))) : null;
-  return { remainingPct, renewsAt: renews && !Number.isNaN(renews.getTime()) ? renews : null, limit, used };
+  const weeklyRemainingPct = percent(root.planWeeklyLimit?.percentRemaining);
+  const known = [windowRemainingPct, weeklyRemainingPct].filter((v): v is number => v !== null);
+  return {
+    remainingPct: known.length > 0 ? Math.min(...known) : null,
+    renewsAt: date(sub?.renewsAt),
+    limit,
+    used,
+    windowRemainingPct,
+    weeklyRemainingPct,
+    weeklyRegenAt: date(root.planWeeklyLimit?.nextRegenAt),
+  };
 }
 
-/** Alert when a key is below 20% or renews within 72 hours. */
+/**
+ * "low" below 20% headroom. "renewing" only when a partly used quota renews within 72 h:
+ * the 5-hour request window always renews within 72 h, so the old rule fired on every
+ * poll and buried real alerts.
+ */
 export function quotaAlert(q: QuotaReading, now: number): "low" | "renewing" | null {
   if (q.remainingPct !== null && q.remainingPct < 20) return "low";
-  if (q.renewsAt && q.renewsAt.getTime() - now < 72 * 3600_000 && q.renewsAt.getTime() > now) return "renewing";
+  if (
+    q.remainingPct !== null &&
+    q.remainingPct < 50 &&
+    q.renewsAt &&
+    q.renewsAt.getTime() - now < 72 * 3600_000 &&
+    q.renewsAt.getTime() > now
+  ) {
+    return "renewing";
+  }
   return null;
 }
 

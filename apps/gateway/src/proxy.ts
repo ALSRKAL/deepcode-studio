@@ -29,6 +29,8 @@ import type { Logger, SecretRegistry } from "./logger.js";
 import type { Balance, Settlement, SettlementRecord } from "./metering.js";
 import type { PoolKey, PoolManager } from "./pool.js";
 import type { SyncService } from "./sync.js";
+import { estimateInputTokens, promptShape } from "./tokenEstimate.js";
+import { orderRoutes } from "./routeOrder.js";
 import { aggregateChatCompletionStream, FAST_MODE_MULTIPLIER, FAST_PREFIX, isInfiniteModel } from "./synthetic.js";
 import { SseFramer, type PreparedBody, type ProtocolAdapter, type RequestContext } from "./protocols/index.js";
 import {
@@ -74,6 +76,11 @@ export interface ProxyDeps {
   agent: Agent;
   now: () => number;
   streams: { active: number };
+  /** Optional Prometheus observer; the proxy works without it (tests, tools). */
+  metrics?: {
+    observeInput(model: string, tokens: number): void;
+    observeContextRejection(model: string): void;
+  };
 }
 
 const USER_AGENT = "DeepCodeStudio-Gateway/0.1";
@@ -181,12 +188,31 @@ export async function handleProxy(
       throw new GatewayHttpError("bad_request", "Streaming requires alt=sse.");
     }
 
-    const inputEstimate = Math.ceil(bytes / 4);
+    const inputEstimate = estimateInputTokens(json);
+    deps.metrics?.observeInput(model, inputEstimate);
+    // Sizes only, never content: how much of each request is fixed (tool schemas,
+    // instructions) versus conversation. Drives the prompt-size work in docs/plan/06.
+    log.info("prompt shape", { model, estimatedTokens: inputEstimate, ...promptShape(json) });
+    const inputLimit = deps.config.maxRequestInputTokens;
+    if (inputLimit > 0 && inputEstimate > inputLimit) {
+      deps.metrics?.observeContextRejection(model);
+      // The desktop parses `N tokens > M` out of a prompt-too-long error and drops
+      // exactly that gap before retrying (compact-selection.ts). Keep the shape.
+      const format = (n: number) => n.toLocaleString("en-US");
+      throw new GatewayHttpError(
+        "context_length_exceeded",
+        `Context limit exceeded: this request is about ${format(inputEstimate)} tokens > ${format(inputLimit)} limit. Compact the conversation and retry.`,
+      );
+    }
+
+    // Reservation stays on bytes/4: a conservative upper bound for text, corrected
+    // by settlement. The structured estimate above is only for the hard cap.
+    const reservationInput = Math.ceil(bytes / 4);
     const cap = sub.plan.maxOutputTokens;
     const requested = adapter.requestedMaxOutput(ctx);
     const outputEstimate = Math.min(requested ?? cap ?? DEFAULT_OUTPUT_ESTIMATE, cap ?? Number.POSITIVE_INFINITY);
     const reservation = computeCredits(
-      { input: inputEstimate, cachedInput: 0, output: outputEstimate, reasoning: 0 },
+      { input: reservationInput, cachedInput: 0, output: outputEstimate, reasoning: 0 },
       price,
     );
     const admitted = await deps.limits.admit({
@@ -213,9 +239,13 @@ export async function handleProxy(
     cleanups.push(admitted.release);
     mark("limits");
 
+    // Several providers serve this model: order them by remaining quota, keeping the user
+    // on the provider that served them last while it is healthy (routeOrder.ts).
+    const affinity = routes.length > 1 ? await deps.pool.affinity(snapshot.userId, model) : null;
+    const orderedRoutes = routes.length > 1 ? orderRoutes(routes, (id) => deps.pool.headroom(id), affinity) : routes;
     const upstream = await dispatch(deps, adapter, ctx, {
       model,
-      routes,
+      routes: orderedRoutes,
       stream,
       requestId,
       userId: snapshot.userId,
@@ -229,6 +259,15 @@ export async function handleProxy(
     mark("upstreamHeaders");
     // Health bookkeeping is off the hot path: the response does not wait for it.
     deps.pool.recordSuccess(upstream.key, model).catch((err) => log.warn("pool success bookkeeping failed", { err }));
+    if (routes.length > 1) {
+      // Refreshed on every success so an active session keeps its provider (and cache).
+      if (upstream.route.provider.id !== affinity) {
+        log.info("route provider chosen", { model, providerId: upstream.route.provider.id, previous: affinity });
+      }
+      deps.pool
+        .setAffinity(snapshot.userId, model, upstream.route.provider.id)
+        .catch((err) => log.warn("route affinity bookkeeping failed", { err }));
+    }
     mark("ready");
     log.debug("request phases", { phases, attempts: upstream.attempts });
 

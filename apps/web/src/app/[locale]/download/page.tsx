@@ -1,8 +1,7 @@
-import { getTranslations } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { releases } from "@deepcode/db";
 import { db } from "@/lib/db";
-import { currentUser } from "@/lib/guards";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { DownloadDetector } from "@/components/download-detector";
@@ -13,9 +12,9 @@ import { env } from "@/lib/env";
 
 /** Download centre (docs/plan/03 §3.2): OS detection + full matrix from releases. */
 export default async function DownloadPage({ params }: { params: Promise<{ locale: string }> }) {
-  await params;
+  const { locale } = await params;
+  setRequestLocale(locale);
   const t = await getTranslations("download");
-  const user = await currentUser();
   const rows = await db()
     .db.select()
     .from(releases)
@@ -28,7 +27,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
 
   return (
     <>
-      <SiteHeader signedIn={user !== null} />
+      <SiteHeader />
       <main className="mx-auto max-w-6xl px-4 py-16">
         <h1 className="text-scale-lg font-semibold">{t("title")}</h1>
         <p className="mt-2 text-fg-muted text-[15px]">{t("sub")}</p>
@@ -118,4 +117,13 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
       <SiteFooter />
     </>
   );
+}
+
+// Public, identical for every visitor: rendered on first request, then served from
+// cache and refreshed at most every 60 s (2026-11-21: rendering per visit gave 11 req/s
+// at 10 s latency under load). The empty list enables that runtime cache without
+// prerendering at build time (the image build has no database).
+export const revalidate = 60;
+export function generateStaticParams() {
+  return [];
 }

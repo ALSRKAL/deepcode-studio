@@ -1,33 +1,30 @@
-# Home mode (your PC behind Tailscale Funnel): serve everything, but only for requests
-# relayed by the DeepCode front server, which adds the shared X-DeepCode-Edge secret.
+# Home mode (your PC behind Tailscale Funnel): serve everything.
+# Funnel is the public edge, so there is no shared-secret gate: the app's own
+# authentication protects every page and the gateway still requires API keys.
 {
 	admin off
 	auto_https off
 	# The platform terminates TLS in front of us.
 	servers {
 		protocols h1 h2c
-		# Render's load balancer (private range) sets X-Forwarded-Proto: https;
+		# Tailscale Funnel connects from loopback and sets X-Forwarded-Proto: https;
 		# trust it so the apps behind us see the public scheme, not http.
 		trusted_proxies static private_ranges
+		# Read X-Forwarded-For right to left: the first address that is not a trusted
+		# proxy is the visitor. Left-to-right would let a visitor pick their own IP.
+		trusted_proxies_strict
 	}
 }
 
 :{$PORT:10000} {
-	# The container's own health check (127.0.0.1 inside it) is the only exception.
-	@notFromFront {
-		not header X-DeepCode-Edge {$HOME_EDGE_TOKEN}
-		not remote_ip 127.0.0.1/32
-	}
-	# handle blocks are exclusive and run in order: the guard is checked before any route.
-	handle @notFromFront {
-		respond "Not found" 404
-	}
-	handle {
-		# Tailscale Funnel rewrites X-Forwarded-Host to the tailnet name; the app builds
-		# redirects from it, so a bare "/pricing" sent visitors to *.ts.net. This server only
-		# ever serves the public site, so state its public host explicitly.
-		request_header X-Forwarded-Host {$PUBLIC_HOST}
-		request_header X-Forwarded-Proto https
-		import /app/caddy/routes.caddy
-	}
+	# Tailscale Funnel rewrites X-Forwarded-Host to the tailnet name; the app builds
+	# redirects from it, so a bare "/pricing" sent visitors to the wrong host. This
+	# server only ever serves the public site, so state its public host explicitly.
+	request_header X-Forwarded-Host {$PUBLIC_HOST}
+	request_header X-Forwarded-Proto https
+	# The visitor's real IP for per-visitor limits (sign-up, sign-in). Set here, so a
+	# client-supplied value is always overwritten (2026-11-21: without it Better Auth
+	# put every visitor in one shared rate-limit bucket).
+	request_header X-DeepCode-Client-IP {client_ip}
+	import /app/caddy/routes.caddy
 }

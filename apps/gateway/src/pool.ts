@@ -29,6 +29,8 @@ export class PoolKey {
     readonly maxConcurrency: number,
     readonly supportedModels: string[] | null,
     secret: string,
+    /** Latest remaining quota (0–100) from the quota poller; null when the provider has no quota API. */
+    readonly quotaPct: number | null = null,
   ) {
     this.#secret = secret;
   }
@@ -58,6 +60,12 @@ export class PoolKey {
 const STALE_INFLIGHT_MS = 30 * 60_000;
 const MINUTE_STAT_TTL_SEC = 48 * 3600;
 const TOTALS_TTL_SEC = 24 * 3600;
+/**
+ * How long a user stays on the provider that last served them. Long enough to span a
+ * working session's pauses (prompt caches outlive a few minutes of idle on most
+ * providers), short enough that a returning user is rebalanced by headroom.
+ */
+const AFFINITY_TTL_SEC = 30 * 60;
 
 export type SelectResult = { key: PoolKey; release: () => Promise<void> } | { key: null; retryAfterMs: number };
 
@@ -89,7 +97,16 @@ export class PoolManager {
         this.deps.secrets.add(secret);
         next.set(
           r.id,
-          new PoolKey(r.id, r.providerId, r.keyFingerprint, r.weight, r.maxConcurrency, r.supportedModels, secret),
+          new PoolKey(
+            r.id,
+            r.providerId,
+            r.keyFingerprint,
+            r.weight,
+            r.maxConcurrency,
+            r.supportedModels,
+            secret,
+            r.quotaRemainingPct ?? null,
+          ),
         );
       } catch {
         // Wrong encryption key or corrupted row. Never log the ciphertext.
@@ -109,6 +126,30 @@ export class PoolManager {
   /** A loaded key by id (quota polling); undefined when inactive or not loaded. */
   get(id: string): PoolKey | undefined {
     return this.#keys.get(id);
+  }
+
+  /**
+   * A provider's headroom for routing (routeOrder.ts): its best loaded key's remaining
+   * quota, or null when none of its keys reports one (no quota API, or not polled yet).
+   * Refreshed with every reload (POOL_RELOAD_INTERVAL_MS) from the poller's readings.
+   */
+  headroom(providerId: string): number | null {
+    let best: number | null = null;
+    for (const k of this.#keys.values()) {
+      if (k.providerId !== providerId || k.quotaPct === null) continue;
+      if (best === null || k.quotaPct > best) best = k.quotaPct;
+    }
+    return best;
+  }
+
+  /** The provider that last served this user and model (prompt-cache affinity), if recent. */
+  async affinity(userId: string, model: string): Promise<string | null> {
+    return this.deps.redis.get(`route:aff:${userId}:${model}`).catch(() => null);
+  }
+
+  /** Remember the provider that served this user and model for AFFINITY_TTL_SEC. */
+  async setAffinity(userId: string, model: string, providerId: string): Promise<void> {
+    await this.deps.redis.set(`route:aff:${userId}:${model}`, providerId, "EX", AFFINITY_TTL_SEC);
   }
 
   /** Least-loaded selection among the provider's keys that serve `model`. */

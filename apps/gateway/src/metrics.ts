@@ -32,6 +32,8 @@ export class Metrics {
   readonly registry = new Registry();
   readonly requests: Counter<"route" | "class">;
   readonly duration: Histogram<"route">;
+  readonly inputTokens: Histogram<"model">;
+  readonly contextRejections: Counter<"model">;
   readonly streamsActive: Gauge;
   readonly settlementPending: Gauge;
   readonly settlementDeadLetter: Gauge;
@@ -51,6 +53,19 @@ export class Metrics {
       labelNames: ["route"],
       // p99 target is 50 ms over upstream; buckets cover 1 ms .. 10 s.
       buckets: [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10_000],
+    });
+    this.inputTokens = new Histogram({
+      name: `${PREFIX}request_input_tokens`,
+      help: "Estimated input tokens per model request (docs/plan/06 §7).",
+      labelNames: ["model"],
+      // The product budget is 256K and the hard cap is 384K; the buckets around
+      // those two numbers are what make a regression visible early.
+      buckets: [10_000, 25_000, 50_000, 100_000, 150_000, 200_000, 228_000, 262_144, 300_000, 384_000, 500_000, 1_000_000],
+    });
+    this.contextRejections = new Counter({
+      name: `${PREFIX}context_rejections_total`,
+      help: "Requests rejected by MAX_REQUEST_INPUT_TOKENS, by model.",
+      labelNames: ["model"],
     });
     this.streamsActive = new Gauge({ name: `${PREFIX}streams_active`, help: "Open streaming responses." });
     this.settlementPending = new Gauge({
@@ -73,6 +88,8 @@ export class Metrics {
     });
     this.registry.registerMetric(this.requests);
     this.registry.registerMetric(this.duration);
+    this.registry.registerMetric(this.inputTokens);
+    this.registry.registerMetric(this.contextRejections);
     this.registry.registerMetric(this.streamsActive);
     this.registry.registerMetric(this.settlementPending);
     this.registry.registerMetric(this.settlementDeadLetter);
@@ -98,6 +115,15 @@ export class Metrics {
     const cls = status < 300 ? "2xx" : status < 400 ? "3xx" : status === 429 ? "429" : status < 500 ? "4xx" : "5xx";
     this.requests.inc({ route, class: cls });
     this.duration.observe({ route }, durationMs);
+  }
+
+  /** Request size distribution (docs/plan/06 §7), recorded before the upstream call. */
+  observeInput(model: string, tokens: number): void {
+    this.inputTokens.observe({ model }, tokens);
+  }
+
+  observeContextRejection(model: string): void {
+    this.contextRejections.inc({ model });
   }
 
   /** Collects scrape-time gauges and counters from Redis and Postgres. */

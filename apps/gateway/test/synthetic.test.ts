@@ -185,8 +185,19 @@ describe("Synthetic: units", () => {
     expect(q).toMatchObject({ remainingPct: 15, limit: 200, used: 170 });
     expect(q.renewsAt?.toISOString()).toBe("2026-11-20T00:00:00.000Z");
     expect(quotaAlert(q, Date.parse("2026-11-01T00:00:00Z"))).toBe("low");
-    expect(parseSyntheticQuota({})).toEqual({ remainingPct: null, renewsAt: null, limit: null, used: null });
-    const renewing = parseSyntheticQuota({ subscription: { limit: 100, requests: 10, renewsAt: "2026-11-02T00:00:00Z" } });
+    expect(parseSyntheticQuota({})).toEqual({
+      remainingPct: null,
+      renewsAt: null,
+      limit: null,
+      used: null,
+      windowRemainingPct: null,
+      weeklyRemainingPct: null,
+      weeklyRegenAt: null,
+    });
+    // A mostly unused window renewing soon is routine, not an alert (it fired every poll).
+    const fresh = parseSyntheticQuota({ subscription: { limit: 100, requests: 10, renewsAt: "2026-11-02T00:00:00Z" } });
+    expect(quotaAlert(fresh, Date.parse("2026-11-01T00:00:00Z"))).toBeNull();
+    const renewing = parseSyntheticQuota({ subscription: { limit: 100, requests: 60, renewsAt: "2026-11-02T00:00:00Z" } });
     expect(quotaAlert(renewing, Date.parse("2026-11-01T00:00:00Z"))).toBe("renewing");
   });
 
@@ -254,5 +265,33 @@ describe("Synthetic: SYNTHETIC_API_KEYS seeding", () => {
     const rows = await db.select().from(keysTable).where(eq(keysTable.providerId, "synthetic"));
     expect(rows.length).toBeGreaterThanOrEqual(2);
     for (const r of rows) expect(Buffer.from(r.keyCiphertext).toString("utf8")).not.toContain(unique);
+  });
+});
+
+describe("synthetic weekly credit (2026-11-21)", () => {
+  // Shape captured from production on 2026-11-21.
+  const live = {
+    search: { hourly: { limit: 250, renewsAt: "2026-11-21T02:27:25.204Z", requests: 0 } },
+    subscription: { limit: 500, renewsAt: "2026-11-21T06:27:25.203Z", requests: 0 },
+    planWeeklyLimit: { nextRegenAt: "2026-11-21T03:27:14.000Z", nextRegenPercent: 2, percentRemaining: 33.999785714285714 },
+  };
+
+  it("the weekly credit binds when it is lower than the request window", () => {
+    const q = parseSyntheticQuota(live);
+    expect(q.windowRemainingPct).toBe(100);
+    expect(q.weeklyRemainingPct).toBe(34);
+    expect(q.remainingPct).toBe(34);
+    expect(q.weeklyRegenAt?.toISOString()).toBe("2026-11-21T03:27:14.000Z");
+  });
+
+  it("alerts low when the weekly credit drops under 20% even with a full window", () => {
+    const q = parseSyntheticQuota({ ...live, planWeeklyLimit: { ...live.planWeeklyLimit, percentRemaining: 12.4 } });
+    expect(quotaAlert(q, Date.parse("2026-11-21T01:00:00Z"))).toBe("low");
+  });
+
+  it("reads values at or below 1 as percentages, not fractions", () => {
+    const q = parseSyntheticQuota({ planWeeklyLimit: { percentRemaining: 0.6 } });
+    expect(q.weeklyRemainingPct).toBe(1);
+    expect(quotaAlert(q, 0)).toBe("low");
   });
 });

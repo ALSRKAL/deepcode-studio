@@ -52,3 +52,6 @@ export default async function DashboardLayout({
     </div>
   );
 }
+
+// Per-user pages: never cached, whatever the parent layout allows (see [locale]/layout.tsx).
+export const dynamic = "force-dynamic";
