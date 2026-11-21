@@ -117,7 +117,8 @@ export function createGateway(
             if (fresh !== "OK" || !config.quotaAlertWebhookUrl) return;
             const text =
               a.kind === "low"
-                ? `DeepCode: upstream key "${a.label}" has ${a.reading.remainingPct}% of its Synthetic quota left.`
+                ? `DeepCode: upstream key "${a.label}" has ${a.reading.remainingPct}% of its Synthetic quota left ` +
+                  `(weekly credit ${a.reading.weeklyRemainingPct ?? "?"}%, 5-hour window ${a.reading.windowRemainingPct ?? "?"}%).`
                 : `DeepCode: upstream key "${a.label}" renews at ${a.reading.renewsAt?.toISOString()} (within 72 h).`;
             await request(config.quotaAlertWebhookUrl, {
               method: "POST",

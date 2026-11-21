@@ -10,6 +10,9 @@
 		# Tailscale Funnel connects from loopback and sets X-Forwarded-Proto: https;
 		# trust it so the apps behind us see the public scheme, not http.
 		trusted_proxies static private_ranges
+		# Read X-Forwarded-For right to left: the first address that is not a trusted
+		# proxy is the visitor. Left-to-right would let a visitor pick their own IP.
+		trusted_proxies_strict
 	}
 }
 
@@ -19,5 +22,9 @@
 	# server only ever serves the public site, so state its public host explicitly.
 	request_header X-Forwarded-Host {$PUBLIC_HOST}
 	request_header X-Forwarded-Proto https
+	# The visitor's real IP for per-visitor limits (sign-up, sign-in). Set here, so a
+	# client-supplied value is always overwritten (2026-11-21: without it Better Auth
+	# put every visitor in one shared rate-limit bucket).
+	request_header X-DeepCode-Client-IP {client_ip}
 	import /app/caddy/routes.caddy
 }

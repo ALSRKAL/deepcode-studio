@@ -112,6 +112,13 @@ export const auth = betterAuth({
     },
     // httpOnly, SameSite=Lax, Secure cookies; CSRF is Next server actions' Origin
     // check plus better-auth's own trustedOrigins validation.
+    ipAddress: {
+      // Per-visitor rate limits. The home server's Caddy sets X-DeepCode-Client-IP
+      // from Funnel's X-Forwarded-For (overwriting any client value). Without a
+      // client IP Better Auth used ONE bucket for everyone, so a few sign-ups at
+      // once blocked all visitors (2026-11-21).
+      ipAddressHeaders: ["x-deepcode-client-ip", "x-forwarded-for"],
+    },
   },
   rateLimit: {
     // In-memory limiter covers auth endpoints per process (docs/plan/03 §4);
