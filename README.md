@@ -24,6 +24,15 @@ This repository runs everything behind the [DeepCode Studio desktop app](https:/
 - **Phone remote control relay** (`infra/render/remote`): lets the desktop app be driven
   from a phone on any network.
 
+## Screenshots
+
+Full-page captures from the Playwright visual suite ([`apps/web/e2e/screenshots/`](apps/web/e2e/screenshots/)):
+
+<p align="center">
+  <img src="apps/web/e2e/screenshots/landing-en-desktop.png" alt="DeepCode Studio landing page, English" width="49%" />
+  <img src="apps/web/e2e/screenshots/landing-ar-desktop.png" alt="DeepCode Studio landing page, Arabic (RTL)" width="49%" />
+</p>
+
 ## Architecture
 
 ```
