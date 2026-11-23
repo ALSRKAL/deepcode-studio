@@ -55,7 +55,7 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
       return {
         id: m.id,
         name: m.displayName,
-        runs: realModel(m.description ?? ""),
+        runs: realModel(m.description ?? "") || m.id,
         context: m.contextWindow ? contextLabel(m.contextWindow) : "",
         plan: first ? planName(first) : "",
         trial: (TRIAL_PLAN.allowedModels as readonly string[]).includes(m.id),
