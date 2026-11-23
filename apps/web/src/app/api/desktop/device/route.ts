@@ -16,6 +16,14 @@ export async function DELETE(request: Request): Promise<Response> {
     });
   }
   const revokedHash = await revokeDeviceByKey(db().db, key);
+  // The hash is produced by the server, but validate its shape before it is
+  // forwarded to the gateway invalidation channel.
+  if (revokedHash && !/^[0-9a-f]{64}$/.test(revokedHash)) {
+    return new Response(JSON.stringify({ error: { code: "invalid_api_key" } }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
   if (!revokedHash) {
     return new Response(JSON.stringify({ error: { code: "invalid_api_key" } }), {
       status: 401,

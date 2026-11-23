@@ -60,8 +60,8 @@ export const auth = betterAuth({
       await sendMail({
         to: user.email,
         locale: userLocale((user as { locale?: string }).locale),
-        subjectKey: "resetPassword",
-        bodyKey: "resetPassword",
+        subjectKey: "accountRecovery",
+        bodyKey: "accountRecovery",
         url,
       });
     },
