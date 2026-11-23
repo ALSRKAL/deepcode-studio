@@ -44,13 +44,75 @@ const NEGATIVE = "none";
 const NEGATIVE_TTL_SEC = 10;
 const AUTH_FAIL_WINDOW_MS = 60_000;
 const AUTH_FAIL_LIMIT = 20;
+/** Permanent free plan (owner decision 2026-11-23). Renewed in 30-day periods. */
+const FREE_PLAN_ID = "free";
+const FREE_PERIOD_MS = 30 * 86_400_000;
+const LIVE_SUB = sql`(${subscriptions.status} in ('trialing', 'active', 'past_due'))`;
 
 export function snapshotKey(hash: string): string {
   return `vk:${hash}`;
 }
 
+type SubscriptionRow = { s: typeof subscriptions.$inferSelect; p: typeof plans.$inferSelect };
+
+/** A live row that may still be used now (past_due keeps its grace window). */
+function usableNow({ s, p }: SubscriptionRow, now: number): boolean {
+  if (s.status === "past_due") return now < s.expiresAt.getTime() + p.pastDueGraceHours * 3_600_000;
+  if (s.status === "trialing" || s.status === "active") return now < s.expiresAt.getTime();
+  return false;
+}
+
+async function latestSubscription(db: Database, userId: string): Promise<SubscriptionRow | undefined> {
+  const [sub] = await db
+    .select({ s: subscriptions, p: plans })
+    .from(subscriptions)
+    .innerJoin(plans, eq(plans.id, subscriptions.planId))
+    .where(eq(subscriptions.userId, userId))
+    .orderBy(desc(LIVE_SUB), desc(subscriptions.createdAt))
+    .limit(1);
+  return sub;
+}
+
+/**
+ * Free plan for accounts with no usable subscription (owner decision 2026-11-23).
+ * The plan runs on OpenCode Go's free models, so it costs us nothing on Synthetic.
+ * A 30-day period is created on demand; the unique live-subscription index makes
+ * concurrent first requests collapse to one row.
+ */
+async function ensureFreeSubscription(db: Database, userId: string, now: number): Promise<SubscriptionRow | undefined> {
+  const [plan] = await db.select().from(plans).where(eq(plans.id, FREE_PLAN_ID)).limit(1);
+  if (!plan) return undefined;
+  // An expired row usually keeps its old status (no expiry job), and the unique
+  // live-subscription index would block the new Free row. Retire it first.
+  await db.execute(sql`
+    update subscriptions s set status = 'expired', updated_at = now()
+    from plans p
+    where s.plan_id = p.id and s.user_id = ${userId}
+      and (
+        (s.status in ('trialing', 'active') and s.expires_at <= to_timestamp(${now}::double precision / 1000))
+        or (s.status = 'past_due'
+            and s.expires_at + make_interval(hours => p.past_due_grace_hours)
+                <= to_timestamp(${now}::double precision / 1000))
+      )
+  `);
+  await db
+    .insert(subscriptions)
+    .values({
+      userId,
+      planId: plan.id,
+      status: "active",
+      currentPeriodStart: new Date(now),
+      expiresAt: new Date(now + FREE_PERIOD_MS),
+      creditsLimit: plan.creditsPerPeriod,
+      billingProvider: "manual",
+      providerSubscriptionId: `free-${userId.slice(0, 8)}`,
+    })
+    .onConflictDoNothing();
+  return latestSubscription(db, userId);
+}
+
 /** Live subscription first (trialing/active/past_due), else the most recent one. */
-async function loadSnapshot(db: Database, keyHash: string): Promise<AuthSnapshot | null> {
+async function loadSnapshot(db: Database, keyHash: string, now: number): Promise<AuthSnapshot | null> {
   const [row] = await db
     .select({ key: virtualApiKeys, userStatus: users.status })
     .from(virtualApiKeys)
@@ -58,16 +120,12 @@ async function loadSnapshot(db: Database, keyHash: string): Promise<AuthSnapshot
     .where(eq(virtualApiKeys.keyHash, keyHash));
   if (!row) return null;
 
-  const [sub] = await db
-    .select({ s: subscriptions, p: plans })
-    .from(subscriptions)
-    .innerJoin(plans, eq(plans.id, subscriptions.planId))
-    .where(eq(subscriptions.userId, row.key.userId))
-    .orderBy(
-      desc(sql`(${subscriptions.status} in ('trialing', 'active', 'past_due'))`),
-      desc(subscriptions.createdAt),
-    )
-    .limit(1);
+  let sub = await latestSubscription(db, row.key.userId);
+  // No plan, an expired trial, or a lapsed subscription: continue on Free instead
+  // of rejecting every request with "expired". Suspended users are handled below.
+  if (row.userStatus === "active" && (!sub || !usableNow(sub, now))) {
+    sub = (await ensureFreeSubscription(db, row.key.userId, now)) ?? sub;
+  }
 
   return {
     keyHash,
@@ -182,7 +240,7 @@ export class Authenticator {
   }
 
   async #loadAndCache(hash: string): Promise<AuthSnapshot | null> {
-    const snapshot = await loadSnapshot(this.deps.db, hash);
+    const snapshot = await loadSnapshot(this.deps.db, hash, this.deps.now());
     if (!snapshot) {
       await this.deps.redis.set(snapshotKey(hash), NEGATIVE, "EX", NEGATIVE_TTL_SEC);
       return null;

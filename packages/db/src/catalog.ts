@@ -112,6 +112,8 @@ export const CATALOG_MODELS: CatalogModel[] = [
   { id: "beam-free", apiType: "openai-chat-completions", usd: [0, 0, 0], verified: true, free: true },
   { id: "iceman-contributor-free", apiType: "openai-chat-completions", usd: [0, 0, 0], verified: true, free: true, trainsOnPrompts: true },
   { id: "longcat-2.5-free", apiType: "openai-chat-completions", usd: [0, 0, 0], verified: true, free: true },
+  // Free tier (owner decision 2026-11-23): Hy4 Flash Free costs $0 on Go.
+  { id: "hy4-flash-free", apiType: "openai-chat-completions", usd: [0, 0, 0], verified: true, free: true },
 ];
 
 export const usdPerMTokToCredits = (usd: number) => Math.round(usd * 1_000_000);
@@ -138,6 +140,7 @@ export interface GoModelPrice {
 export const GO_KEY_CREDITS = 60_000_000;
 export const GO_MODEL_PRICES: Record<string, GoModelPrice> = {
   "beam-free": { usd: [0, 0, 0], monthlyLimitUsd: null, tier: "free" },
+  "hy4-flash-free": { usd: [0, 0, 0], monthlyLimitUsd: null, tier: "free" },
   "longcat-2.5-free": { usd: [0, 0, 0], monthlyLimitUsd: null, tier: "free" },
   "deepseek-v4.1-flash": { usd: [0.3, 1.2, 0.006], monthlyLimitUsd: 100, tier: "economy" },
   "glm-5.3-flash": { usd: [0.15, 0.5, 0.03], monthlyLimitUsd: 60, tier: "economy" },
@@ -192,6 +195,38 @@ const freeModels = privateModels.filter((m) => m.free).map((m) => m.id);
 const cheapModels = [...freeModels, "glm-5.3-flash", "gpt-6-luna", "claude-haiku-5-5", "deepseek-v4.1-flash"];
 const allPrivate = privateModels.map((m) => m.id);
 
+/**
+ * Free tier (owner decision 2026-11-23): OpenCode Go only, so free usage never
+ * draws down Synthetic. `hy4-flash-free` is $0; `deepseek-v4.1-flash` is the paid
+ * fallback for harder tasks and is metered against the free plan's credits.
+ */
+export const GO_FREE_MODELS = ["hy4-flash-free", "deepseek-v4.1-flash"] as const;
+export const GO_FREE_PLAN_CREDITS = 1_500_000;
+
+/** Card facts for the website (the desktop gets the same names from GET /v1/models). */
+export const GO_FREE_MODEL_CARDS: ReadonlyArray<{
+  id: string;
+  displayName: string;
+  description: string;
+  contextWindow: number;
+  sortOrder: number;
+}> = [
+  {
+    id: "hy4-flash-free",
+    displayName: "Hy4 Flash Free",
+    description: "Everyday agent work with images and a 1M context (Hy4 Flash).",
+    contextWindow: 1_048_576,
+    sortOrder: 45,
+  },
+  {
+    id: "deepseek-v4.1-flash",
+    displayName: "DeepSeek Flash",
+    description: "Strong reasoning and coding at a low price (DeepSeek V4.1 Flash).",
+    contextWindow: 1_000_000,
+    sortOrder: 46,
+  },
+];
+
 export const PLACEHOLDER_PLANS = [
   {
     id: "free",
@@ -199,12 +234,13 @@ export const PLACEHOLDER_PLANS = [
     nameEn: "Free",
     nameAr: "مجاني",
     priceCents: 0,
-    creditsPerPeriod: 200_000,
+    creditsPerPeriod: GO_FREE_PLAN_CREDITS,
     rpmLimit: 10,
     maxConcurrentStreams: 1,
-    allowedModels: [...freeModels, "glm-5.3-flash"],
+    allowedModels: [...GO_FREE_MODELS],
     maxOutputTokens: 8_192,
     maxDevices: 1,
+    maxKeys: 1,
     sortOrder: 0,
   },
   {
@@ -346,7 +382,9 @@ export interface PlanLayout {
   allowedModels: string[];
 }
 
-const TRIAL_MODELS = ["deepcode-default"];
+// Trial runs on the same Go free models as the free tier (owner decision 2026-11-23),
+// so trial usage never draws down Synthetic's weekly credit.
+const TRIAL_MODELS = [...GO_FREE_MODELS];
 const STARTER_MODELS = ["deepcode-default", "deepcode-lite", "deepcode-general", "deepcode-fast-agent"];
 const PRO_MODELS = [...STARTER_MODELS, "deepcode-mid", "deepcode-coder-pro"];
 const TEAM_MODELS = [...PRO_MODELS, "deepcode-architect"];
@@ -364,9 +402,9 @@ export const SYNTHETIC_PLAN_MODELS: Record<string, string[]> = Object.fromEntrie
 );
 
 /**
- * Free trial: every new account gets 24 hours on the cheapest high-quota models,
- * then must subscribe. 150k credits ≈ 100 typical DeepSeek agent requests; the
- * worst-case cost per trial is $0.15 of upstream draw.
+ * Free trial: every new account gets 24 hours on the free-tier Go models, then
+ * continues on the permanent Free plan. 150k credits ≈ 200 typical Hy4 requests;
+ * Hy4 Flash Free itself costs nothing upstream, so the trial has no fixed cost.
  */
 export const TRIAL_HOURS = 24;
 export const TRIAL_PLAN = {
@@ -376,7 +414,7 @@ export const TRIAL_PLAN = {
   nameAr: "تجربة مجانية",
   priceCents: 0,
   currency: "INR",
-  creditsPerPeriod: 150_000,
+  creditsPerPeriod: 1_500_000,
   rpmLimit: 10,
   maxConcurrentStreams: 1,
   maxKeys: 1,

@@ -29,6 +29,7 @@ import { handleProxy, type ProxyDeps } from "./proxy.js";
 import { RedisScripts } from "./redisScripts.js";
 import { SyncService } from "./sync.js";
 import { pollSyntheticQuotas, seedSyntheticKeysFromEnv, syntheticOrigin } from "./synthetic.js";
+import { seedOpencodeGoKeysFromEnv } from "./opencodeGo.js";
 
 const RELOAD_CHANNEL = "deepcode:reload";
 const EXPOSED_HEADERS = [...Object.values(USAGE_HEADERS), "Retry-After"];
@@ -95,6 +96,10 @@ export function createGateway(
       // Plug-and-play upstream keys: SYNTHETIC_API_KEYS="syn_a,syn_b" in the environment.
       await seedSyntheticKeysFromEnv({ db: handle.db, encryptionKey: config.encryptionKey, raw: process.env.SYNTHETIC_API_KEYS, log: logger }).catch(
         (err) => logger.error("seeding SYNTHETIC_API_KEYS failed", { err: err instanceof Error ? err.message : "error" }),
+      );
+      // OpenCode Go (free tier): OPENCODE_GO_API_KEYS="oc_sk_a,oc_sk_b".
+      await seedOpencodeGoKeysFromEnv({ db: handle.db, encryptionKey: config.encryptionKey, raw: process.env.OPENCODE_GO_API_KEYS, log: logger }).catch(
+        (err) => logger.error("seeding OPENCODE_GO_API_KEYS failed", { err: err instanceof Error ? err.message : "error" }),
       );
       await Promise.all([deps.pool.reload(), deps.catalog.reload(new Date(now()))]);
       await handle.db.execute(sql`select ensure_usage_log_partitions(2)`);

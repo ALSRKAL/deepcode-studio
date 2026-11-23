@@ -106,7 +106,8 @@ update users set role = 'admin' where lower(email) = lower('بريدك@example.c
 ```
 
 3. سجّل الخروج والدخول، ثم من `/dashboard/settings` فعّل التحقق بخطوتين (مطلوب لدخول `/admin`).
-4. من `/admin/pool` أضف مفتاح OpenCode Go (يُحفظ مشفّراً ولا يظهر مرة أخرى).
+4. أضف مفتاح OpenCode Go بإحدى الطريقتين: `OPENCODE_GO_API_KEYS=oc_sk_...` في بيئة الخادم (تُضاف تلقائياً عند الإقلاع)، أو من `/admin/pool` (يُحفظ مشفّراً ولا يظهر مرة أخرى).
+   ثم شغّل `pnpm db:go-free` مرة واحدة لضبط الخطة المجانية والنموذجين `hy4-flash-free` و`deepseek-v4.1-flash`.
 5. **النماذج والخطط** (التفاصيل في [MODELS.ar.md](MODELS.ar.md)):
    - `/admin/providers` ← «مزامنة النماذج الآن» لـ OpenCode Go: يجلب القائمة الحيّة بأسمائها وأسعارها وسياقها.
    - `/admin/models` ← لكل نموذج: حدّد الخطط التي تعرضه، وعدّل سعرك، أو أخفِه. أو «إضافة جماعية» لكل النماذج المجانية إلى خطة.

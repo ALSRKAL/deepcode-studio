@@ -1,6 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { and, eq } from "drizzle-orm";
-import { plans, SYNTHETIC_MODELS, TRIAL_PLAN } from "@deepcode/db";
+import { GO_FREE_MODEL_CARDS, plans, SYNTHETIC_MODELS, TRIAL_PLAN } from "@deepcode/db";
 import { db } from "@/lib/db";
 import { SignedInSwitch } from "@/components/signed-in";
 import { env } from "@/lib/env";
@@ -40,7 +40,7 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
   const publicPlans = await db().db.select().from(plans).where(and(eq(plans.isPublic, true))).orderBy(plans.sortOrder);
 
   const planName = (p: (typeof publicPlans)[number]) => (locale === "ar" ? p.nameAr : p.nameEn);
-  const models = [...SYNTHETIC_MODELS]
+  const models = [...SYNTHETIC_MODELS, ...GO_FREE_MODEL_CARDS]
     .filter((m) => publicPlans.some((p) => p.allowedModels.includes(m.id)))
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((m) => {

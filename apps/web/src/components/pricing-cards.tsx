@@ -1,13 +1,15 @@
 import { getTranslations } from "next-intl/server";
 import { SignedInSwitch } from "@/components/signed-in";
-import { plans, SYNTHETIC_MODELS } from "@deepcode/db";
+import { GO_FREE_MODEL_CARDS, plans, SYNTHETIC_MODELS } from "@deepcode/db";
 import { Card, Badge, Num } from "@/components/ui/primitives";
 import { formatPrice } from "@/lib/money";
 import { ButtonLink } from "@/components/ui/button";
 
 /** Branded name plus the real model behind it, strongest first, for the plan's model ids. */
 function modelNames(ids: string[]): Array<{ id: string; name: string; real: string | null }> {
-  return SYNTHETIC_MODELS.filter((m) => ids.includes(m.id))
+  // Paid plans use the branded Synthetic models; the Free plan uses OpenCode Go.
+  return [...SYNTHETIC_MODELS, ...GO_FREE_MODEL_CARDS]
+    .filter((m) => ids.includes(m.id))
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((m) => ({ id: m.id, name: m.displayName, real: /\(([^)]+)\)\.?$/.exec(m.description)?.[1] ?? null }));
 }
@@ -24,8 +26,9 @@ export async function PricingCards({
   signedIn?: boolean;
 }) {
   const t = await getTranslations({ locale: locale as "ar" | "en", namespace: "pricing" });
-  // Highlight the middle public plan (Pro when Starter/Pro/Team are offered).
-  const featured = Math.floor((rows.length - 1) / 2) + (rows.length % 2 === 0 ? 1 : 0);
+  // Highlight Pro whenever it is public; with Free added, "the middle" would be Starter.
+  const proIndex = rows.findIndex((p) => p.tier === "pro");
+  const featured = proIndex >= 0 ? proIndex : Math.floor((rows.length - 1) / 2) + (rows.length % 2 === 0 ? 1 : 0);
   return (
     <div className={`grid gap-4 sm:grid-cols-2 ${rows.length === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4"}`}>
       {rows.map((plan, i) => (
