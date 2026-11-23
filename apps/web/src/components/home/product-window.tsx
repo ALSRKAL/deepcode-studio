@@ -80,8 +80,8 @@ export async function ProductWindow() {
             <div className="flex items-center gap-2 rounded-xl border border-ink-line bg-ink-2 px-3 py-2.5">
               <span className="flex-1 truncate text-[13px] text-ink-muted">{t("winAsk")}</span>
               <span dir="ltr" className="hidden items-center gap-1.5 rounded-md bg-ink-3 px-2 py-1 text-[11.5px] sm:flex">
-                <span className="font-medium text-ink-fg">DeepCode Default</span>
-                <span className="text-ink-muted">DeepSeek V4.1 Flash</span>
+                <span className="font-medium text-ink-fg">GLM-5.3-Flash</span>
+                <span className="text-ink-muted">Zhipu GLM 5.3 Flash</span>
               </span>
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent-glow text-ink">↑</span>
             </div>
