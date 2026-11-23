@@ -163,7 +163,7 @@ try {
         isPublic: true,
         allowedModels: [...GO_FREE_MODELS],
         creditsPerPeriod: GO_FREE_PLAN_CREDITS,
-        maxOutputTokens: 8_192,
+        maxOutputTokens: 32_768,
         maxConcurrentStreams: 1,
         rpmLimit: 10,
         maxDevices: 1,
