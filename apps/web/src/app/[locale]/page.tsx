@@ -234,9 +234,9 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
           <Eyebrow>{t("modelsEyebrow")}</Eyebrow>
           <h2 className="mt-4 text-display-sm font-semibold tracking-[-0.01em]">{t("modelsTitle")}</h2>
           <p className="mt-3 max-w-2xl text-[16px] leading-7 text-fg-muted">{t("modelsSub")}</p>
-          <div className="mt-10 overflow-x-auto rounded-[14px] border border-border bg-surface" role="region" tabIndex={0} aria-label={t("modelsTitle")}>
+          <div className="mt-10 max-h-[520px] overflow-auto rounded-[14px] border border-border bg-surface" role="region" tabIndex={0} aria-label={t("modelsTitle")}>
             <table className="w-full min-w-[560px] text-[14px]">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-surface">
                 <tr className="border-b border-border text-start text-[12.5px] text-fg-subtle">
                   <th scope="col" className="px-5 py-3 text-start font-medium">{t("colModel")}</th>
                   <th scope="col" className="px-5 py-3 text-start font-medium">{t("colRuns")}</th>
