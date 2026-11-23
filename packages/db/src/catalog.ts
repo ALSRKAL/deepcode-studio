@@ -385,7 +385,15 @@ export interface PlanLayout {
 // Trial runs on the same Go free models as the free tier (owner decision 2026-11-23),
 // so trial usage never draws down Synthetic's weekly credit.
 const TRIAL_MODELS = [...GO_FREE_MODELS];
-const STARTER_MODELS = ["deepcode-default", "deepcode-lite", "deepcode-general", "deepcode-fast-agent"];
+// Paid plans also include the two Go models: Hy4 costs nothing and DeepSeek Flash is
+// cheap, so a paid user can switch to them and save Synthetic's weekly credit.
+const STARTER_MODELS = [
+  ...GO_FREE_MODELS,
+  "deepcode-default",
+  "deepcode-lite",
+  "deepcode-general",
+  "deepcode-fast-agent",
+];
 const PRO_MODELS = [...STARTER_MODELS, "deepcode-mid", "deepcode-coder-pro"];
 const TEAM_MODELS = [...PRO_MODELS, "deepcode-architect"];
 
