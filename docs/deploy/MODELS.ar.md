@@ -23,6 +23,23 @@
 
 **الخطة المجانية جاهزة تلقائياً** (قرار المالك 2026-11-23): `pnpm db:go-free` (أو `OPENCODE_GO_API_KEYS=...`) يضبط المزوّد والنموذجين والخطة. كل حساب بلا اشتراك صالح يحصل تلقائياً على الخطة المجانية لمدة 30 يوماً، وتُجدَّد عند أول طلب بعد انتهائها. التجربة المجانية (24 ساعة) تستخدم النموذجين نفسهما، حتى لا تستهلك رصيد Synthetic.
 
+## توزيع Go فقط (قرار المالك 2026-11-23)
+
+كل الخطط العامة تعمل الآن على **OpenCode Go فقط**؛ لا يستطيع أي مستخدم غير المالك طلب نموذج Synthetic:
+
+| الخطة | الكريدت/الشهر | النماذج |
+|---|---|---|
+| مجاني / تجربة | 1,500,000 | `hy4-flash-free` (صفر كريدت) + `deepseek-v4.1-flash` |
+| Starter | 2,500,000 | free + economy: GLM-5.3-Flash، GLM-5.2، LongCat-2.0، MiMo-V2.6-Flash، MiniMax-M3، Qwen3.7 Plus، Hy4، Hy3، Kimi K2.7 Code |
+| Pro | 4,000,000 | Starter + mid: Qwen3.8 Flash، Hy4 preview، Gemini 4 Argon، MiniMax M3.1 Flash |
+| Team | 5,000,000 | Pro + premium: GLM-5.3، Kimi K3.1 Pro/K3، Step 5 Preview، MiMo-V2.6-Pro، DeepSeek V4 Pro، GPT-6/5.6 Luna، Claude Haiku 5.5، Grok 4.7، Qwen4/3.8 Max |
+| **Owner (خاص)** | 60,000,000 | كل نماذج Go + نماذج DeepCode على Synthetic — لحساب `mohammedalsrkal@gmail.com` فقط |
+
+- **السعة:** مفتاح Go الواحد يحمل 60M كريدت/شهر. أعلى خطة 5M × 10 مستخدمين = 50M، أي أن مفتاحاً واحداً يكفي 10 أشخاص ويترك 10M احتياطاً. أي مفتاح إضافي يرفع السعة 60M.
+- **قبل تفعيل أي مفتاح:** اختبره على الاستدلال (وليس `/models` فقط) ثم فعّله بـ `GO_EXTRA_KEY_ID` أو من `/admin/pool`. مفتاح يرد 403 على الاستدلال يُترك `auth_failed` ولا يُحسب في السعة.
+- **التطبيق:** `OWNER_EMAIL=... EXPECTED_USERS=10 pnpm db:go-plans` (idempotent). يتحقق السكربت أن الخطط العامة خالية من Synthetic وأن 10 مستخدمين على Team يدخلون في سعة المفاتيح، وإلا يفشل ولا ينشر.
+- **نموذج Synthetic** لا يُوجَّه أبداً إلى Go: مسارات `deepcode-*` على `opencode-go` معطّلة، والبوابة ترفضه لأي خطة غير `owner`.
+
 ## إضافة مزوّد جديد (مثلاً OpenRouter)
 1. `/admin/providers` ← افتح OpenRouter ← فعّل «مفعّل» ← حفظ.
 2. `/admin/pool` ← أضف مفتاح OpenRouter للمزوّد `openrouter`.

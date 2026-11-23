@@ -178,23 +178,6 @@ export function goWeightedCredits(price: GoModelPrice): [number, number, number]
   return price.usd.map((usd) => usdPerMTokToCredits(usd * weight)) as [number, number, number];
 }
 
-const goModelsOfTiers = (tiers: GoTier[]) =>
-  Object.entries(GO_MODEL_PRICES)
-    .filter(([, p]) => tiers.includes(p.tier))
-    .map(([id]) => id);
-
-/** Hosted plan layout (owner decision 2026-11-16): credits sized against GO_KEY_CREDITS. */
-export const GO_PLAN_LAYOUT: Record<string, { creditsPerPeriod: number; allowedModels: string[] }> = {
-  "starter-monthly": { creditsPerPeriod: 6_000_000, allowedModels: goModelsOfTiers(["free", "economy"]) },
-  "pro-monthly": { creditsPerPeriod: 20_000_000, allowedModels: goModelsOfTiers(["free", "economy", "mid", "premium"]) },
-  "team-monthly": { creditsPerPeriod: 60_000_000, allowedModels: goModelsOfTiers(["free", "economy", "mid", "premium"]) },
-};
-
-const privateModels = CATALOG_MODELS.filter((m) => !m.trainsOnPrompts);
-const freeModels = privateModels.filter((m) => m.free).map((m) => m.id);
-const cheapModels = [...freeModels, "glm-5.3-flash", "gpt-6-luna", "claude-haiku-5-5", "deepseek-v4.1-flash"];
-const allPrivate = privateModels.map((m) => m.id);
-
 /**
  * Free tier (owner decision 2026-11-23): OpenCode Go only, so free usage never
  * draws down Synthetic. `hy4-flash-free` is $0; `deepseek-v4.1-flash` is the paid
@@ -202,6 +185,88 @@ const allPrivate = privateModels.map((m) => m.id);
  */
 export const GO_FREE_MODELS = ["hy4-flash-free", "deepseek-v4.1-flash"] as const;
 export const GO_FREE_PLAN_CREDITS = 1_500_000;
+
+/**
+ * Go-only plan distribution (owner decision 2026-11-23). Every public plan runs
+ * on OpenCode Go; Synthetic is reserved for the owner's private plan.
+ *
+ * Capacity: one Go key carries GO_KEY_CREDITS (60M) per month. Two active keys
+ * carry 120M, enough for 10 users on the top plan (10 x team 10M = 100M).
+ */
+export const GO_STARTER_MODELS = [
+  ...GO_FREE_MODELS,
+  "glm-5.3-flash",
+  "glm-5.2",
+  "longcat-2.0",
+  "mimo-v2.6-flash",
+  "minimax-m3",
+  "qwen3.7-plus",
+  "hy4",
+  "hy3",
+  "kimi-k2.7-code",
+] as const;
+export const GO_PRO_MODELS = [
+  ...GO_STARTER_MODELS,
+  "qwen3.8-flash",
+  "hy4-preview",
+  "gemini-4-argon",
+  "minimax-m3.1-flash",
+] as const;
+export const GO_TEAM_MODELS = [
+  ...GO_PRO_MODELS,
+  "glm-5.3",
+  "kimi-k3.1-pro",
+  "kimi-k3",
+  "step-5-preview",
+  "mimo-v2.6-pro",
+  "deepseek-v4-pro",
+  "gpt-6-luna",
+  "gpt-5.6-luna",
+  "claude-haiku-5-5",
+  "grok-4.7",
+  "qwen4-max",
+  "qwen3.8-max",
+] as const;
+
+/**
+ * Monthly credits for the Go-only public plans. One Go key carries 60M credits;
+ * 10 top-plan users at 5M = 50M, leaving 10M of headroom on a single key.
+ */
+export const GO_PUBLIC_PLAN_CREDITS = {
+  "starter-monthly": 2_500_000,
+  "pro-monthly": 4_000_000,
+  "team-monthly": 5_000_000,
+} as const;
+
+/** Private owner plan: Go models plus the Synthetic branded models. */
+export const OWNER_PLAN_ID = "owner";
+export const OWNER_PLAN_CREDITS = 60_000_000;
+export const OWNER_SYNTHETIC_MODELS = [
+  "deepcode-default",
+  "deepcode-lite",
+  "deepcode-general",
+  "deepcode-fast-agent",
+  "deepcode-mid",
+  "deepcode-coder-pro",
+  "deepcode-architect",
+] as const;
+export const OWNER_MODELS = [...new Set<string>([...GO_TEAM_MODELS, ...OWNER_SYNTHETIC_MODELS])];
+
+/** Hosted Go-only public plan layout (owner decision 2026-11-23). */
+export const GO_PLAN_LAYOUT: Record<string, { creditsPerPeriod: number; allowedModels: string[] }> = {
+  "starter-monthly": {
+    creditsPerPeriod: GO_PUBLIC_PLAN_CREDITS["starter-monthly"],
+    allowedModels: [...GO_STARTER_MODELS],
+  },
+  "pro-monthly": {
+    creditsPerPeriod: GO_PUBLIC_PLAN_CREDITS["pro-monthly"],
+    allowedModels: [...GO_PRO_MODELS],
+  },
+  "team-monthly": {
+    creditsPerPeriod: GO_PUBLIC_PLAN_CREDITS["team-monthly"],
+    allowedModels: [...GO_TEAM_MODELS],
+  },
+};
 
 /** Card facts for the website (the desktop gets the same names from GET /v1/models). */
 export const GO_FREE_MODEL_CARDS: ReadonlyArray<{
@@ -249,11 +314,11 @@ export const PLACEHOLDER_PLANS = [
     nameEn: "Starter",
     nameAr: "المبتدئ",
     priceCents: 1_000,
-    creditsPerPeriod: 5_000_000,
+    creditsPerPeriod: GO_PUBLIC_PLAN_CREDITS["starter-monthly"],
     rpmLimit: 30,
     maxConcurrentStreams: 2,
-    allowedModels: cheapModels,
-    maxOutputTokens: 32_000,
+    allowedModels: [...GO_STARTER_MODELS],
+    maxOutputTokens: 32_768,
     maxDevices: 2,
     sortOrder: 1,
   },
@@ -263,10 +328,10 @@ export const PLACEHOLDER_PLANS = [
     nameEn: "Pro",
     nameAr: "احترافي",
     priceCents: 3_000,
-    creditsPerPeriod: 20_000_000,
+    creditsPerPeriod: GO_PUBLIC_PLAN_CREDITS["pro-monthly"],
     rpmLimit: 60,
     maxConcurrentStreams: 4,
-    allowedModels: allPrivate,
+    allowedModels: [...GO_PRO_MODELS],
     maxOutputTokens: 64_000,
     maxDevices: 3,
     sortOrder: 2,
@@ -277,13 +342,29 @@ export const PLACEHOLDER_PLANS = [
     nameEn: "Team",
     nameAr: "الفريق",
     priceCents: 8_000,
-    creditsPerPeriod: 60_000_000,
+    creditsPerPeriod: GO_PUBLIC_PLAN_CREDITS["team-monthly"],
     rpmLimit: 120,
     maxConcurrentStreams: 8,
-    allowedModels: allPrivate,
+    allowedModels: [...GO_TEAM_MODELS],
     maxOutputTokens: 64_000,
     maxDevices: 10,
     sortOrder: 3,
+  },
+  {
+    id: OWNER_PLAN_ID,
+    tier: "team" as const,
+    nameEn: "Owner",
+    nameAr: "المالك",
+    priceCents: 0,
+    creditsPerPeriod: OWNER_PLAN_CREDITS,
+    rpmLimit: 120,
+    maxConcurrentStreams: 8,
+    allowedModels: [...OWNER_MODELS],
+    maxOutputTokens: 64_000,
+    maxDevices: 10,
+    maxKeys: 10,
+    isPublic: false,
+    sortOrder: 99,
   },
 ];
 
@@ -385,10 +466,9 @@ export interface PlanLayout {
 // Trial runs on the same Go free models as the free tier (owner decision 2026-11-23),
 // so trial usage never draws down Synthetic's weekly credit.
 const TRIAL_MODELS = [...GO_FREE_MODELS];
-// Paid plans also include the two Go models: Hy4 costs nothing and DeepSeek Flash is
-// cheap, so a paid user can switch to them and save Synthetic's weekly credit.
+// Synthetic layouts are kept for the owner's private plan/reference only; public
+// plans are Go-only (GO_PLAN_LAYOUT above).
 const STARTER_MODELS = [
-  ...GO_FREE_MODELS,
   "deepcode-default",
   "deepcode-lite",
   "deepcode-general",

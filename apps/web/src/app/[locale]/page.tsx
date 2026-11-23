@@ -1,6 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { and, eq } from "drizzle-orm";
-import { GO_FREE_MODEL_CARDS, plans, SYNTHETIC_MODELS, TRIAL_PLAN } from "@deepcode/db";
+import { and, eq, inArray } from "drizzle-orm";
+import { catalogModels, plans, TRIAL_PLAN } from "@deepcode/db";
 import { db } from "@/lib/db";
 import { SignedInSwitch } from "@/components/signed-in";
 import { env } from "@/lib/env";
@@ -40,16 +40,23 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
   const publicPlans = await db().db.select().from(plans).where(and(eq(plans.isPublic, true))).orderBy(plans.sortOrder);
 
   const planName = (p: (typeof publicPlans)[number]) => (locale === "ar" ? p.nameAr : p.nameEn);
-  const models = [...SYNTHETIC_MODELS, ...GO_FREE_MODEL_CARDS]
-    .filter((m) => publicPlans.some((p) => p.allowedModels.includes(m.id)))
-    .sort((a, b) => a.sortOrder - b.sortOrder)
+  const publicModelIds = [...new Set(publicPlans.flatMap((p) => p.allowedModels))];
+  const catalogRows = publicModelIds.length
+    ? await db()
+        .db.select()
+        .from(catalogModels)
+        .where(inArray(catalogModels.id, publicModelIds))
+    : [];
+  const models = catalogRows
+    .filter((m) => m.status === "active")
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.displayName.localeCompare(b.displayName))
     .map((m) => {
       const first = publicPlans.find((p) => p.allowedModels.includes(m.id));
       return {
         id: m.id,
         name: m.displayName,
-        runs: realModel(m.description),
-        context: contextLabel(m.contextWindow),
+        runs: realModel(m.description ?? ""),
+        context: m.contextWindow ? contextLabel(m.contextWindow) : "",
         plan: first ? planName(first) : "",
         trial: (TRIAL_PLAN.allowedModels as readonly string[]).includes(m.id),
       };

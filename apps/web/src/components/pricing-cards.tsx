@@ -1,17 +1,31 @@
 import { getTranslations } from "next-intl/server";
+import { inArray } from "drizzle-orm";
 import { SignedInSwitch } from "@/components/signed-in";
-import { GO_FREE_MODEL_CARDS, plans, SYNTHETIC_MODELS } from "@deepcode/db";
+import { catalogModels, plans } from "@deepcode/db";
 import { Card, Badge, Num } from "@/components/ui/primitives";
+import { db } from "@/lib/db";
 import { formatPrice } from "@/lib/money";
 import { ButtonLink } from "@/components/ui/button";
 
-/** Branded name plus the real model behind it, strongest first, for the plan's model ids. */
-function modelNames(ids: string[]): Array<{ id: string; name: string; real: string | null }> {
-  // Paid plans use the branded Synthetic models; the Free plan uses OpenCode Go.
-  return [...SYNTHETIC_MODELS, ...GO_FREE_MODEL_CARDS]
-    .filter((m) => ids.includes(m.id))
+type CatalogRow = Pick<
+  typeof catalogModels.$inferSelect,
+  "id" | "displayName" | "description" | "sortOrder"
+>;
+
+/** Plan names come from the catalog, so Go plans need no hard-coded model list here. */
+function modelNames(
+  ids: string[],
+  byId: Map<string, CatalogRow>,
+): Array<{ id: string; name: string; real: string | null }> {
+  return ids
+    .map((id) => byId.get(id))
+    .filter((m): m is CatalogRow => Boolean(m))
     .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((m) => ({ id: m.id, name: m.displayName, real: /\(([^)]+)\)\.?$/.exec(m.description)?.[1] ?? null }));
+    .map((m) => ({
+      id: m.id,
+      name: m.displayName,
+      real: /\(([^)]+)\)\.?$/.exec(m.description ?? "")?.[1] ?? null,
+    }));
 }
 
 /** Shared plan cards (docs/plan/03 §3.1): one source — the plans table. */
@@ -26,6 +40,19 @@ export async function PricingCards({
   signedIn?: boolean;
 }) {
   const t = await getTranslations({ locale: locale as "ar" | "en", namespace: "pricing" });
+  const allModelIds = [...new Set(rows.flatMap((p) => p.allowedModels))];
+  const catalogRows = allModelIds.length
+    ? await db()
+        .db.select({
+          id: catalogModels.id,
+          displayName: catalogModels.displayName,
+          description: catalogModels.description,
+          sortOrder: catalogModels.sortOrder,
+        })
+        .from(catalogModels)
+        .where(inArray(catalogModels.id, allModelIds))
+    : [];
+  const catalogById = new Map(catalogRows.map((m) => [m.id, m]));
   // Highlight Pro whenever it is public; with Free added, "the middle" would be Starter.
   const proIndex = rows.findIndex((p) => p.tier === "pro");
   const featured = proIndex >= 0 ? proIndex : Math.floor((rows.length - 1) / 2) + (rows.length % 2 === 0 ? 1 : 0);
@@ -66,7 +93,7 @@ export async function PricingCards({
               <span>{t("models")}</span>
             </p>
             <ul className="mt-1.5 grid gap-1 text-[13px]" data-testid="plan-models">
-              {modelNames(plan.allowedModels).map((m) => (
+              {modelNames(plan.allowedModels, catalogById).map((m) => (
                 <li key={m.id} className="flex items-baseline justify-between gap-2">
                   <bdi dir="ltr">{m.name}</bdi>
                   {m.real ? <bdi dir="ltr" className="truncate text-[12px] text-fg-subtle">{m.real}</bdi> : null}
