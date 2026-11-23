@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import type { Context } from "hono";
 import { request, type Agent, type Dispatcher } from "undici";
+import { OWNER_PLAN_ID, OWNER_SYNTHETIC_MODELS } from "@deepcode/db";
 import {
   computeCredits,
   percentUsed,
@@ -84,6 +85,7 @@ export interface ProxyDeps {
 }
 
 const USER_AGENT = "DeepCodeStudio-Gateway/0.1";
+const OWNER_ONLY_MODELS = new Set<string>(OWNER_SYNTHETIC_MODELS);
 const DEFAULT_OUTPUT_ESTIMATE = 4_096;
 /** Client headers that may be forwarded upstream. Everything else is dropped. */
 const FORWARDED_CLIENT_HEADERS = ["anthropic-version", "anthropic-beta"];
@@ -168,6 +170,11 @@ export async function handleProxy(
     // `fast:<model>`: Synthetic fast mode (2x the draw), only for plans that include it.
     const fast = requestedModel.startsWith(FAST_PREFIX);
     const model = fast ? requestedModel.slice(FAST_PREFIX.length) : requestedModel;
+    // Defense in depth: the Synthetic branded models belong to the owner's private
+    // plan. Even if a public plan is misconfigured to list one, it stays owner-only.
+    if (OWNER_ONLY_MODELS.has(model) && sub.plan.id !== OWNER_PLAN_ID) {
+      throw new GatewayHttpError("model_not_allowed");
+    }
     if (fast && !deps.config.fastModeTiers.includes(sub.plan.tier)) {
       throw new GatewayHttpError("model_not_allowed", "Fast mode is not included in your plan.");
     }
