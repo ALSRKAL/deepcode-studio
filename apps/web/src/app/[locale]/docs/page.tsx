@@ -104,7 +104,7 @@ export default async function DocsPage({ params }: { params: Promise<{ locale: s
                   <LtrIsland as="pre" tabIndex={0} className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-ink p-4 text-[12.5px] leading-6 text-ink-fg">
                     {copy}
                   </LtrIsland>
-                  <CopyButton value={copy} label={common("copy")} />
+                  <CopyButton value={copy} label={common("copy")} copiedLabel={common("copied")} />
                 </div>
               </div>
             </section>

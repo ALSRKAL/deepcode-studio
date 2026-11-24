@@ -16,9 +16,9 @@ export async function generateMetadata({
 }: {
   params: Promise<{ locale: string; slug: string }>;
 }) {
-  const { slug } = await params;
+  const { locale: raw, slug } = await params;
   if (!SLUGS.includes(slug as Slug)) notFound();
-  const locale = (await params).locale === "en" ? "en" : "ar";
+  const locale = raw === "en" ? "en" : "ar";
   const legal = await getTranslations({ locale, namespace: "legal" });
   const meta = await getTranslations({ locale, namespace: "meta.legal" });
   const titleKey = slug === "acceptable-use" ? "acceptableUse" : slug;

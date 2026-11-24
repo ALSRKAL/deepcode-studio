@@ -31,7 +31,7 @@ export function SubmitButton({
   );
 }
 
-export function CopyButton({ value, label }: { value: string; label: string }) {
+export function CopyButton({ value, label, copiedLabel = "Copied" }: { value: string; label: string; copiedLabel?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -49,7 +49,7 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
       }}
     >
       <span aria-live="polite" className="sr-only">
-        {copied ? "Copied" : ""}
+        {copied ? copiedLabel : ""}
       </span>
       {copied ? <span aria-hidden="true" className="text-success">✓</span> : null}
       {label}

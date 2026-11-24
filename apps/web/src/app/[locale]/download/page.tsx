@@ -26,6 +26,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations("download");
+  const common = await getTranslations("common");
   const rows = await db()
     .db.select()
     .from(releases)
@@ -87,7 +88,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
                 <code dir="ltr" tabIndex={0} aria-label={label} className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-md border border-border bg-surface px-3 py-2 font-mono text-[13px]">
                   {cmd}
                 </code>
-                <CopyButton value={cmd} label={t("copy")} />
+                <CopyButton value={cmd} label={t("copy")} copiedLabel={common("copied")} />
               </div>
             </div>
           ))}
@@ -112,7 +113,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
                   </p>
                   <div className="mt-3 flex items-center gap-2">
                     <LtrIsland className="min-w-0 break-all font-mono text-[10px] text-fg-muted">{row.sha256}</LtrIsland>
-                    <CopyButton value={row.sha256} label={t("copyChecksum")} />
+                    <CopyButton value={row.sha256} label={t("copyChecksum")} copiedLabel={common("copied")} />
                   </div>
                 </div>
               ))}
@@ -143,7 +144,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <LtrIsland className="max-w-[14rem] truncate font-mono text-[11px] text-fg-muted">{row.sha256}</LtrIsland>
-                        <CopyButton value={row.sha256} label={t("copyChecksum")} />
+                        <CopyButton value={row.sha256} label={t("copyChecksum")} copiedLabel={common("copied")} />
                       </div>
                     </td>
                   </tr>
