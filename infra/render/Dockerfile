@@ -31,7 +31,7 @@ RUN mkdir -p /out/web \
  && cp -r apps/web/.next/standalone/. /out/web/ \
  && mkdir -p /out/web/apps/web/.next \
  && cp -r apps/web/.next/static /out/web/apps/web/.next/static \
- && if [ -d apps/web/public ]; then cp -r apps/web/public /out/web/apps/web/public; fi
+ && if [ -d apps/web/public ]; then mkdir -p /out/web/apps/web/public && cp -r apps/web/public/. /out/web/apps/web/public/; fi
 
 # Phone remote-control bundle (phone page + relay), published by the desktop repo and
 # pinned by URL + sha256 in infra/render/remote/bundle.env (see infra/render/remote/README.md).
