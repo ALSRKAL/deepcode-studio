@@ -21,6 +21,7 @@ import {
   GO_MODEL_PRICES,
   OPENCODE_GO_PROVIDER,
   PLACEHOLDER_PLANS,
+  TRIAL_PLAN,
   goWeightedCredits,
 } from "../catalog.js";
 import {
@@ -175,7 +176,8 @@ try {
   await db
     .update(plans)
     .set({
-      allowedModels: [...GO_FREE_MODELS],
+      // Trial keeps the two free models plus the limited-time HungerG Free.
+      allowedModels: [...TRIAL_PLAN.allowedModels],
       creditsPerPeriod: GO_FREE_PLAN_CREDITS,
       updatedAt: new Date(),
     })

@@ -93,11 +93,11 @@ export const CATALOG_MODELS: CatalogModel[] = [
   // OpenAI Chat Completions
   { id: "glm-5.3-flash", apiType: "openai-chat-completions", usd: [0.15, 0.5, 0.03], verified: true },
   { id: "glm-5.3", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
-  { id: "glm-5.2", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
   { id: "kimi-k3.1-pro", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
   { id: "kimi-k3", apiType: "openai-chat-completions", usd: [3, 15, 0.3], verified: true },
   { id: "kimi-k2.7-code", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
-  { id: "longcat-2.0", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
+  { id: "longcat-2.5", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
+  { id: "hungerg-free", apiType: "openai-chat-completions", usd: [0, 0, 0], verified: true, free: true },
   { id: "deepseek-v4.1-flash", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
   { id: "deepseek-v4-pro", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
   { id: "mimo-v2.6-flash", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
@@ -143,10 +143,10 @@ export const GO_MODEL_PRICES: Record<string, GoModelPrice> = {
   "hy4-flash-free": { usd: [0, 0, 0], monthlyLimitUsd: null, tier: "free" },
   "longcat-2.5-free": { usd: [0, 0, 0], monthlyLimitUsd: null, tier: "free" },
   "deepseek-v4.1-flash": { usd: [0.3, 1.2, 0.006], monthlyLimitUsd: 100, tier: "economy" },
+  "hungerg-free": { usd: [0, 0, 0], monthlyLimitUsd: null, tier: "free" },
   "glm-5.3-flash": { usd: [0.15, 0.5, 0.03], monthlyLimitUsd: 60, tier: "economy" },
-  "glm-5.2": { usd: [1.4, 4.4, 0.26], monthlyLimitUsd: 60, tier: "economy" },
   "kimi-k2.7-code": { usd: [0.95, 4, 0.19], monthlyLimitUsd: 60, tier: "economy" },
-  "longcat-2.0": { usd: [0.3, 1.2, 0.006], monthlyLimitUsd: 60, tier: "economy" },
+  "longcat-2.5": { usd: [0.3, 1.2, 0.006], monthlyLimitUsd: 60, tier: "economy" },
   "mimo-v2.6-flash": { usd: [0.14, 0.28, 0.0028], monthlyLimitUsd: 60, tier: "economy" },
   "mimo-v2.5": { usd: [0.14, 0.28, 0.0028], monthlyLimitUsd: 60, tier: "economy" },
   "minimax-m3": { usd: [0.3, 1.2, 0.06], monthlyLimitUsd: 60, tier: "economy" },
@@ -195,9 +195,9 @@ export const GO_FREE_PLAN_CREDITS = 1_500_000;
  */
 export const GO_STARTER_MODELS = [
   ...GO_FREE_MODELS,
+  "hungerg-free",
   "glm-5.3-flash",
-  "glm-5.2",
-  "longcat-2.0",
+  "longcat-2.5",
   "mimo-v2.6-flash",
   "minimax-m3",
   "qwen3.7-plus",
@@ -465,7 +465,9 @@ export interface PlanLayout {
 
 // Trial runs on the same Go free models as the free tier (owner decision 2026-11-23),
 // so trial usage never draws down Synthetic's weekly credit.
-const TRIAL_MODELS = [...GO_FREE_MODELS];
+// The 24-hour trial keeps the two free plan models plus the limited-time HungerG
+// Free reasoning model (owner decision 2026-11-24).
+const TRIAL_MODELS = [...GO_FREE_MODELS, "hungerg-free"] as const;
 // Synthetic layouts are kept for the owner's private plan/reference only; public
 // plans are Go-only (GO_PLAN_LAYOUT above).
 const STARTER_MODELS = [

@@ -30,6 +30,7 @@ import {
   OWNER_PLAN_ID,
   OWNER_SYNTHETIC_MODELS,
   TRIAL_HOURS,
+  TRIAL_PLAN,
   goWeightedCredits,
 } from "../catalog.js";
 import {
@@ -195,7 +196,7 @@ try {
       creditsPerPeriod: GO_FREE_PLAN_CREDITS,
       rpmLimit: 10,
       maxConcurrentStreams: 1,
-      allowedModels: [...GO_FREE_MODELS],
+      allowedModels: [...TRIAL_PLAN.allowedModels],
       maxOutputTokens: 32_768,
       maxDevices: 1,
       maxKeys: 1,

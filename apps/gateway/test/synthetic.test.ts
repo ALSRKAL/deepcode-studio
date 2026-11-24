@@ -233,9 +233,10 @@ describe("Synthetic: units", () => {
     expect(allCached).toBe(Math.round(fresh * 0.25));
   });
 
-  it("trial runs on the Go free models; paid layouts only reference real models", async () => {
+  it("trial runs on the Go free models plus HungerG; paid layouts only reference real models", async () => {
     const { GO_FREE_MODELS, SYNTHETIC_PLAN_LAYOUT, TRIAL_PLAN } = await import("@deepcode/db");
-    for (const m of TRIAL_PLAN.allowedModels) expect(GO_FREE_MODELS).toContain(m);
+    for (const m of GO_FREE_MODELS) expect(TRIAL_PLAN.allowedModels).toContain(m);
+    expect(TRIAL_PLAN.allowedModels).toContain("hungerg-free");
     const ids = new Set(SYNTHETIC_MODELS.map((m) => m.id));
     for (const p of Object.values(SYNTHETIC_PLAN_LAYOUT)) for (const m of p.allowedModels) expect(ids.has(m)).toBe(true);
     expect(SYNTHETIC_PLAN_LAYOUT["starter-monthly"]!.allowedModels).not.toContain("deepcode-architect");

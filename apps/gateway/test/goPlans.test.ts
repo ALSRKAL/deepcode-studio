@@ -38,7 +38,8 @@ describe("Go plan distribution", () => {
     expect(GO_PUBLIC_PLAN_CREDITS["team-monthly"] * 10).toBeLessThanOrEqual(GO_KEY_CREDITS);
   });
 
-  it("free and trial use the same Go free models", () => {
-    expect([...TRIAL_PLAN.allowedModels]).toEqual([...GO_FREE_MODELS]);
+  it("trial keeps every free plan model plus HungerG Free", () => {
+    for (const id of GO_FREE_MODELS) expect(TRIAL_PLAN.allowedModels).toContain(id);
+    expect(TRIAL_PLAN.allowedModels).toContain("hungerg-free");
   });
 });
