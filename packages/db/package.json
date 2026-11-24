@@ -17,6 +17,8 @@
     "generate": "drizzle-kit generate",
     "migrate": "node --conditions=@deepcode/source --env-file-if-exists=../../.env --import tsx src/scripts/migrate.ts",
     "seed": "node --conditions=@deepcode/source --env-file-if-exists=../../.env --import tsx src/scripts/seed.ts",
+    "go:free": "node --conditions=@deepcode/source --env-file-if-exists=../../.env --import tsx src/scripts/goFree.ts",
+    "go:plans": "node --conditions=@deepcode/source --env-file-if-exists=../../.env --import tsx src/scripts/goPlans.ts",
     "roles": "node --conditions=@deepcode/source --env-file-if-exists=../../.env --import tsx src/scripts/roles.ts",
     "test": "vitest run"
   },

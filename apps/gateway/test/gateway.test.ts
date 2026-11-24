@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GatewayErrorSchema, SubscriptionStatusResponseSchema, USAGE_HEADERS, uuidv7 } from "@deepcode/shared";
-import { catalogModels, upstreamPoolKeys, usageDaily, usageLogs, users, virtualApiKeys } from "@deepcode/db";
+import { catalogModels, modelRoutes, upstreamPoolKeys, upstreamProviders, usageDaily, usageLogs, users, virtualApiKeys } from "@deepcode/db";
+import { encryptPoolKey } from "@deepcode/shared/node/pool-crypto";
 import { settleBatch, type SettlementRecord } from "../src/metering.js";
 import {
   balance,
@@ -553,6 +555,80 @@ describe("upstream key pool", () => {
     h.mock.script(withFb.poolSecrets[0]!, { status: 503 }, { status: 503 }, { status: 503 });
     expect((await call(h, withFb, "chat", { stream: false })).status).toBe(200);
     expect(h.mock.requestsFor(withFb.fallbackSecrets[0]!)[0]!.body.model).toBe(`${withFb.models[0]}-fallback`);
+  });
+});
+
+describe("routing across subscriptions by remaining quota (2026-11-21)", () => {
+  async function addPeerProvider(t: Awaited<ReturnType<typeof createTenant>>) {
+    const db = h.gw.deps.db;
+    const peerId = `peer-${t.providerId}`;
+    const base = h.mock.url;
+    await db.insert(upstreamProviders).values({
+      id: peerId,
+      displayName: peerId,
+      baseUrls: { "openai-chat-completions": `${base}/openai/v1` },
+    });
+    for (const m of t.models) {
+      await db.insert(modelRoutes).values({ model: m, providerId: peerId, apiType: "openai-chat-completions", upstreamModel: `${m}-peer` });
+    }
+    const secret = `mock-upstream-key-peer-${randomUUID()}`;
+    const [row] = await db
+      .insert(upstreamPoolKeys)
+      .values({ providerId: peerId, label: "peer", ...encryptPoolKey(secret, h.config.encryptionKey) })
+      .returning();
+    return { peerSecret: secret, peerKeyId: row!.id };
+  }
+
+  async function setQuota(keyId: string, pct: number | null) {
+    await h.gw.deps.db.update(upstreamPoolKeys).set({ quotaRemainingPct: pct }).where(eq(upstreamPoolKeys.id, keyId));
+  }
+
+  it("G-40: skips a nearly used-up subscription, keeps the user there after, and moves them when it runs low", async () => {
+    const t = await createTenant(h);
+    const { peerSecret, peerKeyId } = await addPeerProvider(t);
+
+    // Primary nearly out of weekly credit, peer healthy: the request goes to the peer.
+    await setQuota(t.poolKeyIds[0]!, 5);
+    await setQuota(peerKeyId, 70);
+    await h.gw.deps.pool.reload();
+    await h.gw.deps.catalog.reload();
+    expect((await call(h, t, "chat", { stream: false })).status).toBe(200);
+    expect(h.mock.requestsFor(peerSecret)).toHaveLength(1);
+    expect(h.mock.requestsFor(peerSecret)[0]!.body.model).toBe(`${t.models[0]}-peer`);
+
+    // Primary recovers with more headroom, peer still healthy: the user stays (prompt cache).
+    await setQuota(t.poolKeyIds[0]!, 90);
+    await setQuota(peerKeyId, 40);
+    await h.gw.deps.pool.reload();
+    expect((await call(h, t, "chat", { stream: false })).status).toBe(200);
+    expect(h.mock.requestsFor(peerSecret)).toHaveLength(2);
+    expect(h.mock.requestsFor(t.poolSecrets[0]!)).toHaveLength(0);
+
+    // The peer drops under 10%: the user moves to the primary.
+    await setQuota(peerKeyId, 6);
+    await h.gw.deps.pool.reload();
+    expect((await call(h, t, "chat", { stream: false })).status).toBe(200);
+    expect(h.mock.requestsFor(t.poolSecrets[0]!)).toHaveLength(1);
+  });
+
+  it("G-41: an exhausted subscription still serves when it is the only one left", async () => {
+    const t = await createTenant(h);
+    await setQuota(t.poolKeyIds[0]!, 1);
+    await h.gw.deps.pool.reload();
+    expect((await call(h, t, "chat", { stream: false })).status).toBe(200);
+    expect(h.mock.requestsFor(t.poolSecrets[0]!)).toHaveLength(1);
+  });
+
+  it("G-42: a 429 on one subscription fails over to the other in the same request", async () => {
+    const t = await createTenant(h);
+    const { peerSecret, peerKeyId } = await addPeerProvider(t);
+    await setQuota(t.poolKeyIds[0]!, 80);
+    await setQuota(peerKeyId, 20);
+    await h.gw.deps.pool.reload();
+    await h.gw.deps.catalog.reload();
+    h.mock.script(t.poolSecrets[0]!, { status: 429, headers: { "retry-after": "60" } });
+    expect((await call(h, t, "chat", { stream: false })).status).toBe(200);
+    expect(h.mock.requestsFor(peerSecret)).toHaveLength(1);
   });
 });
 

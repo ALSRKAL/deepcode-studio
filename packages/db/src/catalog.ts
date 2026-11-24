@@ -93,11 +93,11 @@ export const CATALOG_MODELS: CatalogModel[] = [
   // OpenAI Chat Completions
   { id: "glm-5.3-flash", apiType: "openai-chat-completions", usd: [0.15, 0.5, 0.03], verified: true },
   { id: "glm-5.3", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
-  { id: "glm-5.2", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
   { id: "kimi-k3.1-pro", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
   { id: "kimi-k3", apiType: "openai-chat-completions", usd: [3, 15, 0.3], verified: true },
   { id: "kimi-k2.7-code", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
-  { id: "longcat-2.0", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
+  { id: "longcat-2.5", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
+  { id: "hungerg-free", apiType: "openai-chat-completions", usd: [0, 0, 0], verified: true, free: true },
   { id: "deepseek-v4.1-flash", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
   { id: "deepseek-v4-pro", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
   { id: "mimo-v2.6-flash", apiType: "openai-chat-completions", usd: PLACEHOLDER, verified: false },
@@ -112,6 +112,8 @@ export const CATALOG_MODELS: CatalogModel[] = [
   { id: "beam-free", apiType: "openai-chat-completions", usd: [0, 0, 0], verified: true, free: true },
   { id: "iceman-contributor-free", apiType: "openai-chat-completions", usd: [0, 0, 0], verified: true, free: true, trainsOnPrompts: true },
   { id: "longcat-2.5-free", apiType: "openai-chat-completions", usd: [0, 0, 0], verified: true, free: true },
+  // Free tier (owner decision 2026-11-23): Hy4 Flash Free costs $0 on Go.
+  { id: "hy4-flash-free", apiType: "openai-chat-completions", usd: [0, 0, 0], verified: true, free: true },
 ];
 
 export const usdPerMTokToCredits = (usd: number) => Math.round(usd * 1_000_000);
@@ -138,12 +140,13 @@ export interface GoModelPrice {
 export const GO_KEY_CREDITS = 60_000_000;
 export const GO_MODEL_PRICES: Record<string, GoModelPrice> = {
   "beam-free": { usd: [0, 0, 0], monthlyLimitUsd: null, tier: "free" },
+  "hy4-flash-free": { usd: [0, 0, 0], monthlyLimitUsd: null, tier: "free" },
   "longcat-2.5-free": { usd: [0, 0, 0], monthlyLimitUsd: null, tier: "free" },
   "deepseek-v4.1-flash": { usd: [0.3, 1.2, 0.006], monthlyLimitUsd: 100, tier: "economy" },
+  "hungerg-free": { usd: [0, 0, 0], monthlyLimitUsd: null, tier: "free" },
   "glm-5.3-flash": { usd: [0.15, 0.5, 0.03], monthlyLimitUsd: 60, tier: "economy" },
-  "glm-5.2": { usd: [1.4, 4.4, 0.26], monthlyLimitUsd: 60, tier: "economy" },
   "kimi-k2.7-code": { usd: [0.95, 4, 0.19], monthlyLimitUsd: 60, tier: "economy" },
-  "longcat-2.0": { usd: [0.3, 1.2, 0.006], monthlyLimitUsd: 60, tier: "economy" },
+  "longcat-2.5": { usd: [0.3, 1.2, 0.006], monthlyLimitUsd: 60, tier: "economy" },
   "mimo-v2.6-flash": { usd: [0.14, 0.28, 0.0028], monthlyLimitUsd: 60, tier: "economy" },
   "mimo-v2.5": { usd: [0.14, 0.28, 0.0028], monthlyLimitUsd: 60, tier: "economy" },
   "minimax-m3": { usd: [0.3, 1.2, 0.06], monthlyLimitUsd: 60, tier: "economy" },
@@ -175,22 +178,119 @@ export function goWeightedCredits(price: GoModelPrice): [number, number, number]
   return price.usd.map((usd) => usdPerMTokToCredits(usd * weight)) as [number, number, number];
 }
 
-const goModelsOfTiers = (tiers: GoTier[]) =>
-  Object.entries(GO_MODEL_PRICES)
-    .filter(([, p]) => tiers.includes(p.tier))
-    .map(([id]) => id);
+/**
+ * Free tier (owner decision 2026-11-23): OpenCode Go only, so free usage never
+ * draws down Synthetic. `hy4-flash-free` is $0; `deepseek-v4.1-flash` is the paid
+ * fallback for harder tasks and is metered against the free plan's credits.
+ */
+export const GO_FREE_MODELS = ["hy4-flash-free", "deepseek-v4.1-flash"] as const;
+export const GO_FREE_PLAN_CREDITS = 1_500_000;
 
-/** Hosted plan layout (owner decision 2026-11-16): credits sized against GO_KEY_CREDITS. */
+/**
+ * Go-only plan distribution (owner decision 2026-11-23). Every public plan runs
+ * on OpenCode Go; Synthetic is reserved for the owner's private plan.
+ *
+ * Capacity: one Go key carries GO_KEY_CREDITS (60M) per month. Two active keys
+ * carry 120M, enough for 10 users on the top plan (10 x team 10M = 100M).
+ */
+export const GO_STARTER_MODELS = [
+  ...GO_FREE_MODELS,
+  "hungerg-free",
+  "glm-5.3-flash",
+  "longcat-2.5",
+  "mimo-v2.6-flash",
+  "minimax-m3",
+  "qwen3.7-plus",
+  "hy4",
+  "hy3",
+  "kimi-k2.7-code",
+] as const;
+export const GO_PRO_MODELS = [
+  ...GO_STARTER_MODELS,
+  "qwen3.8-flash",
+  "hy4-preview",
+  "gemini-4-argon",
+  "minimax-m3.1-flash",
+] as const;
+export const GO_TEAM_MODELS = [
+  ...GO_PRO_MODELS,
+  "glm-5.3",
+  "kimi-k3.1-pro",
+  "kimi-k3",
+  "step-5-preview",
+  "mimo-v2.6-pro",
+  "deepseek-v4-pro",
+  "gpt-6-luna",
+  "gpt-5.6-luna",
+  "claude-haiku-5-5",
+  "grok-4.7",
+  "qwen4-max",
+  "qwen3.8-max",
+] as const;
+
+/**
+ * Monthly credits for the Go-only public plans. One Go key carries 60M credits;
+ * 10 top-plan users at 5M = 50M, leaving 10M of headroom on a single key.
+ */
+export const GO_PUBLIC_PLAN_CREDITS = {
+  "starter-monthly": 2_500_000,
+  "pro-monthly": 4_000_000,
+  "team-monthly": 5_000_000,
+} as const;
+
+/** Private owner plan: Go models plus the Synthetic branded models. */
+export const OWNER_PLAN_ID = "owner";
+export const OWNER_PLAN_CREDITS = 60_000_000;
+export const OWNER_SYNTHETIC_MODELS = [
+  "deepcode-default",
+  "deepcode-lite",
+  "deepcode-general",
+  "deepcode-fast-agent",
+  "deepcode-mid",
+  "deepcode-coder-pro",
+  "deepcode-architect",
+] as const;
+export const OWNER_MODELS = [...new Set<string>([...GO_TEAM_MODELS, ...OWNER_SYNTHETIC_MODELS])];
+
+/** Hosted Go-only public plan layout (owner decision 2026-11-23). */
 export const GO_PLAN_LAYOUT: Record<string, { creditsPerPeriod: number; allowedModels: string[] }> = {
-  "starter-monthly": { creditsPerPeriod: 6_000_000, allowedModels: goModelsOfTiers(["free", "economy"]) },
-  "pro-monthly": { creditsPerPeriod: 20_000_000, allowedModels: goModelsOfTiers(["free", "economy", "mid", "premium"]) },
-  "team-monthly": { creditsPerPeriod: 60_000_000, allowedModels: goModelsOfTiers(["free", "economy", "mid", "premium"]) },
+  "starter-monthly": {
+    creditsPerPeriod: GO_PUBLIC_PLAN_CREDITS["starter-monthly"],
+    allowedModels: [...GO_STARTER_MODELS],
+  },
+  "pro-monthly": {
+    creditsPerPeriod: GO_PUBLIC_PLAN_CREDITS["pro-monthly"],
+    allowedModels: [...GO_PRO_MODELS],
+  },
+  "team-monthly": {
+    creditsPerPeriod: GO_PUBLIC_PLAN_CREDITS["team-monthly"],
+    allowedModels: [...GO_TEAM_MODELS],
+  },
 };
 
-const privateModels = CATALOG_MODELS.filter((m) => !m.trainsOnPrompts);
-const freeModels = privateModels.filter((m) => m.free).map((m) => m.id);
-const cheapModels = [...freeModels, "glm-5.3-flash", "gpt-6-luna", "claude-haiku-5-5", "deepseek-v4.1-flash"];
-const allPrivate = privateModels.map((m) => m.id);
+/** Card facts for the website (the desktop gets the same names from GET /v1/models). */
+export const GO_FREE_MODEL_CARDS: ReadonlyArray<{
+  id: string;
+  displayName: string;
+  description: string;
+  contextWindow: number;
+  sortOrder: number;
+}> = [
+  {
+    id: "hy4-flash-free",
+    displayName: "Hy4 Flash Free",
+    description: "Everyday agent work with images and a 1M context (Hy4 Flash).",
+    contextWindow: 1_048_576,
+    sortOrder: 45,
+  },
+  {
+    id: "deepseek-v4.1-flash",
+    displayName: "DeepSeek Flash",
+    description: "Strong reasoning and coding at a low price (DeepSeek V4.1 Flash).",
+    contextWindow: 1_000_000,
+    sortOrder: 46,
+  },
+];
 
 export const PLACEHOLDER_PLANS = [
   {
@@ -199,12 +299,13 @@ export const PLACEHOLDER_PLANS = [
     nameEn: "Free",
     nameAr: "مجاني",
     priceCents: 0,
-    creditsPerPeriod: 200_000,
+    creditsPerPeriod: GO_FREE_PLAN_CREDITS,
     rpmLimit: 10,
     maxConcurrentStreams: 1,
-    allowedModels: [...freeModels, "glm-5.3-flash"],
-    maxOutputTokens: 8_192,
+    allowedModels: [...GO_FREE_MODELS],
+    maxOutputTokens: 32_768,
     maxDevices: 1,
+    maxKeys: 1,
     sortOrder: 0,
   },
   {
@@ -213,11 +314,11 @@ export const PLACEHOLDER_PLANS = [
     nameEn: "Starter",
     nameAr: "المبتدئ",
     priceCents: 1_000,
-    creditsPerPeriod: 5_000_000,
+    creditsPerPeriod: GO_PUBLIC_PLAN_CREDITS["starter-monthly"],
     rpmLimit: 30,
     maxConcurrentStreams: 2,
-    allowedModels: cheapModels,
-    maxOutputTokens: 32_000,
+    allowedModels: [...GO_STARTER_MODELS],
+    maxOutputTokens: 32_768,
     maxDevices: 2,
     sortOrder: 1,
   },
@@ -227,10 +328,10 @@ export const PLACEHOLDER_PLANS = [
     nameEn: "Pro",
     nameAr: "احترافي",
     priceCents: 3_000,
-    creditsPerPeriod: 20_000_000,
+    creditsPerPeriod: GO_PUBLIC_PLAN_CREDITS["pro-monthly"],
     rpmLimit: 60,
     maxConcurrentStreams: 4,
-    allowedModels: allPrivate,
+    allowedModels: [...GO_PRO_MODELS],
     maxOutputTokens: 64_000,
     maxDevices: 3,
     sortOrder: 2,
@@ -241,13 +342,29 @@ export const PLACEHOLDER_PLANS = [
     nameEn: "Team",
     nameAr: "الفريق",
     priceCents: 8_000,
-    creditsPerPeriod: 60_000_000,
+    creditsPerPeriod: GO_PUBLIC_PLAN_CREDITS["team-monthly"],
     rpmLimit: 120,
     maxConcurrentStreams: 8,
-    allowedModels: allPrivate,
+    allowedModels: [...GO_TEAM_MODELS],
     maxOutputTokens: 64_000,
     maxDevices: 10,
     sortOrder: 3,
+  },
+  {
+    id: OWNER_PLAN_ID,
+    tier: "team" as const,
+    nameEn: "Owner",
+    nameAr: "المالك",
+    priceCents: 0,
+    creditsPerPeriod: OWNER_PLAN_CREDITS,
+    rpmLimit: 120,
+    maxConcurrentStreams: 8,
+    allowedModels: [...OWNER_MODELS],
+    maxOutputTokens: 64_000,
+    maxDevices: 10,
+    maxKeys: 10,
+    isPublic: false,
+    sortOrder: 99,
   },
 ];
 
@@ -346,8 +463,19 @@ export interface PlanLayout {
   allowedModels: string[];
 }
 
-const TRIAL_MODELS = ["deepcode-default"];
-const STARTER_MODELS = ["deepcode-default", "deepcode-lite", "deepcode-general", "deepcode-fast-agent"];
+// Trial runs on the same Go free models as the free tier (owner decision 2026-11-23),
+// so trial usage never draws down Synthetic's weekly credit.
+// The 24-hour trial keeps the two free plan models plus the limited-time HungerG
+// Free reasoning model (owner decision 2026-11-24).
+const TRIAL_MODELS = [...GO_FREE_MODELS, "hungerg-free"] as const;
+// Synthetic layouts are kept for the owner's private plan/reference only; public
+// plans are Go-only (GO_PLAN_LAYOUT above).
+const STARTER_MODELS = [
+  "deepcode-default",
+  "deepcode-lite",
+  "deepcode-general",
+  "deepcode-fast-agent",
+];
 const PRO_MODELS = [...STARTER_MODELS, "deepcode-mid", "deepcode-coder-pro"];
 const TEAM_MODELS = [...PRO_MODELS, "deepcode-architect"];
 
@@ -364,9 +492,9 @@ export const SYNTHETIC_PLAN_MODELS: Record<string, string[]> = Object.fromEntrie
 );
 
 /**
- * Free trial: every new account gets 24 hours on the cheapest high-quota models,
- * then must subscribe. 150k credits ≈ 100 typical DeepSeek agent requests; the
- * worst-case cost per trial is $0.15 of upstream draw.
+ * Free trial: every new account gets 24 hours on the free-tier Go models, then
+ * continues on the permanent Free plan. 150k credits ≈ 200 typical Hy4 requests;
+ * Hy4 Flash Free itself costs nothing upstream, so the trial has no fixed cost.
  */
 export const TRIAL_HOURS = 24;
 export const TRIAL_PLAN = {
@@ -376,12 +504,12 @@ export const TRIAL_PLAN = {
   nameAr: "تجربة مجانية",
   priceCents: 0,
   currency: "INR",
-  creditsPerPeriod: 150_000,
+  creditsPerPeriod: 1_500_000,
   rpmLimit: 10,
   maxConcurrentStreams: 1,
   maxKeys: 1,
   maxDevices: 1,
-  maxOutputTokens: 8_192,
+  maxOutputTokens: 32_768,
   allowedModels: TRIAL_MODELS,
   isPublic: false,
   sortOrder: 0,

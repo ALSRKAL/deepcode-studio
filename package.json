@@ -16,6 +16,8 @@
     "db:generate": "pnpm --filter @deepcode/db generate",
     "db:migrate": "pnpm --filter @deepcode/db migrate",
     "db:seed": "pnpm --filter @deepcode/db seed",
+    "db:go-free": "pnpm --filter @deepcode/db go:free",
+    "db:go-plans": "pnpm --filter @deepcode/db go:plans",
     "dev:gateway": "pnpm --filter @deepcode/gateway dev",
     "verify:synthetic": "node --env-file-if-exists=.env scripts/verify-synthetic-live.ts"
   },

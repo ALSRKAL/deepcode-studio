@@ -21,16 +21,16 @@ const transport = env.SMTP_URL
     })
   : null;
 
-type MailKey = "verifyEmail" | "resetPassword";
+type MailKey = "verifyEmail" | "accountRecovery";
 
 const SUBJECTS: Record<"ar" | "en", Record<MailKey, string>> = {
   ar: {
     verifyEmail: "تأكيد بريدك الإلكتروني — DeepCode Studio",
-    resetPassword: "إعادة تعيين كلمة المرور — DeepCode Studio",
+    accountRecovery: "استعادة الوصول — DeepCode Studio",
   },
   en: {
     verifyEmail: "Verify your email — DeepCode Studio",
-    resetPassword: "Reset your password — DeepCode Studio",
+    accountRecovery: "Restore access — DeepCode Studio",
   },
 };
 
@@ -38,13 +38,13 @@ const BODIES: Record<"ar" | "en", Record<MailKey, string>> = {
   ar: {
     verifyEmail:
       "أهلاً بك في DeepCode Studio.\nلتأكيد بريدك الإلكتروني، افتح الرابط التالي:\n{url}\n\nإذا لم تطلب هذا الحساب يمكنك تجاهل الرسالة.",
-    resetPassword:
+    accountRecovery:
       "طلب إعادة تعيين كلمة المرور لحسابك.\nالرابط صالح لفترة قصيرة:\n{url}\n\nإذا لم تطلب ذلك، تجاهل الرسالة.",
   },
   en: {
     verifyEmail:
       "Welcome to DeepCode Studio.\nTo verify your email address, open this link:\n{url}\n\nIf you did not create an account, you can ignore this message.",
-    resetPassword:
+    accountRecovery:
       "A password reset was requested for your account.\nThis link expires shortly:\n{url}\n\nIf you did not request this, ignore this message.",
   },
 };

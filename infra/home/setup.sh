@@ -1,14 +1,24 @@
 #!/bin/bash
-# Prepare this computer as the DeepCode home server (see README.md).
-#   ./setup.sh          build + start the server, print what to set on Render
+# DeepCode Studio on this computer, served to the internet through Tailscale Funnel.
+#   ./setup.sh          build + start the server (Postgres and Redis start with it)
 #   ./setup.sh update   rebuild with the latest code and restart
-#   ./setup.sh stop     stop it (Render serves everyone)
+#   ./setup.sh stop     stop the whole stack (the public site goes down)
 set -euo pipefail
 cd "$(dirname "$0")"
 
 if [ ! -f ../render/render.env ]; then
-  echo "infra/render/render.env is missing (the production settings)." >&2; exit 1
+  echo "infra/render/render.env is missing (the production secrets)." >&2; exit 1
 fi
+
+if [ ! -f .env ]; then
+  umask 077
+  {
+    echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
+    echo "REDIS_PASSWORD=$(openssl rand -hex 24)"
+  } > .env
+  echo "Created .env with database and cache passwords."
+fi
+
 if [ ! -f home.env ]; then
   umask 077
   {
@@ -18,16 +28,19 @@ if [ ! -f home.env ]; then
     echo "GATEWAY_HEAP_MB=1024"
     echo "WEB_HEAP_MB=1024"
     echo "RELAY_HEAP_MB=128"
+    echo ""
+    echo "# Public address: replace with your Tailscale Funnel host if it differs."
+    echo "APP_URL=https://alsrkal.tail31ef3c.ts.net"
+    echo "NEXT_PUBLIC_GATEWAY_URL=https://alsrkal.tail31ef3c.ts.net"
+    echo "GATEWAY_PUBLIC_WEB_ORIGIN=https://alsrkal.tail31ef3c.ts.net"
   } > home.env
   echo "Created home.env."
 fi
 
-# Same derivation as infra/render/start.sh, for the local readiness check below.
-EDGE="$(grep -E '^HOME_EDGE_TOKEN=' home.env | cut -d= -f2- || true)"
-if [ -z "$EDGE" ]; then
-  EDGE="$(python3 -c 'import hmac,hashlib,sys,re
-tok=next(l.split("=",1)[1].strip().strip("\"'"'"'") for l in open("../render/render.env") if l.startswith("GATEWAY_INTERNAL_TOKEN="))
-print(hmac.new(tok.encode(), b"deepcode-home-edge", hashlib.sha256).hexdigest())')"
+if [ ! -d storage ]; then
+  mkdir -p storage
+  chown 1000:1000 storage 2>/dev/null || true
+  chmod 700 storage
 fi
 
 case "${1:-start}" in
@@ -37,9 +50,8 @@ case "${1:-start}" in
 esac
 
 echo "Waiting for the server…"
-for _ in $(seq 1 60); do
-  # Direct local calls carry the secret too (the home server answers nobody else).
-  if curl -sf -H "X-DeepCode-Edge: $EDGE" http://127.0.0.1:10000/readyz >/dev/null; then
+for _ in $(seq 1 120); do
+  if curl -sf http://127.0.0.1:10000/readyz >/dev/null; then
     echo "Home server is up on 127.0.0.1:10000."
     break
   fi
@@ -51,19 +63,20 @@ if command -v tailscale >/dev/null && tailscale status >/dev/null 2>&1; then
   echo
   echo "Tailscale is connected: $host"
   if tailscale funnel status 2>/dev/null | grep -q "Funnel on"; then
-    echo "Public tunnel: on."
-    who=$(curl -s -m 20 -D - -o /dev/null https://deepcode-2sfl.onrender.com/readyz | tr -d '\r' | awk -F': ' 'tolower($1)=="x-deepcode-server"{print $2}')
-    case "$who" in
-      home) echo "Live site is served by this computer. All set." ;;
-      cloud) echo "Live site is served by Render right now; it switches here within a few seconds of this server being ready." ;;
-      *) echo "Live site did not answer; check https://deepcode-2sfl.onrender.com" ;;
-    esac
+    code=$(curl -s -m 20 -o /dev/null -w '%{http_code}' "https://$host/readyz" || true)
+    if [ "$code" = "200" ]; then
+      echo "Public site: https://$host — served by this computer."
+    else
+      echo "Public site did not answer (HTTP $code). Check: sudo tailscale funnel status"
+    fi
   else
     echo "Turn on the public tunnel (once; it survives restarts):"
     echo "    sudo tailscale funnel --bg 10000"
-    echo "Then on Render (service → Environment) set only:"
-    echo "    HOME_ORIGIN=$host"
   fi
+  echo
+  echo "Backups: ./backup.sh  (a daily copy is installed in the user's crontab)"
+  echo "Desktop app: set the endpoint to https://$host, or build with"
+  echo "    DEEPCODE_GATEWAY_URL=https://$host DEEPCODE_WEB_ORIGIN=https://$host"
 else
   echo
   echo "Next: install Tailscale and sign in (see README.md), then run ./setup.sh again."

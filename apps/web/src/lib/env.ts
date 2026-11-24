@@ -12,6 +12,10 @@ const EnvSchema = z.object({
   AUTH_SECRET: z.string().min(32),
   GATEWAY_INTERNAL_TOKEN: z.string().min(32),
   APP_URL: z.url().default("http://localhost:3210"),
+  /** Canonical public origin for metadata, sitemap and social previews. */
+  SITE_URL: z.url().optional(),
+  /** Public support address shown on /contact when set. */
+  SUPPORT_EMAIL: z.email().optional(),
   GATEWAY_URL: z.url().default("http://127.0.0.1:8790"),
   BILLING_PROVIDER: z.enum(["mock", "stripe", "upi"]).default("mock"),
   /** 24-hour free trial for new accounts (limited-time offer); "false" turns it off. */

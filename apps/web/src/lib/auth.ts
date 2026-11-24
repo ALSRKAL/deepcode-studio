@@ -60,8 +60,8 @@ export const auth = betterAuth({
       await sendMail({
         to: user.email,
         locale: userLocale((user as { locale?: string }).locale),
-        subjectKey: "resetPassword",
-        bodyKey: "resetPassword",
+        subjectKey: "accountRecovery",
+        bodyKey: "accountRecovery",
         url,
       });
     },
@@ -112,6 +112,13 @@ export const auth = betterAuth({
     },
     // httpOnly, SameSite=Lax, Secure cookies; CSRF is Next server actions' Origin
     // check plus better-auth's own trustedOrigins validation.
+    ipAddress: {
+      // Per-visitor rate limits. The home server's Caddy sets X-DeepCode-Client-IP
+      // from Funnel's X-Forwarded-For (overwriting any client value). Without a
+      // client IP Better Auth used ONE bucket for everyone, so a few sign-ups at
+      // once blocked all visitors (2026-11-21).
+      ipAddressHeaders: ["x-deepcode-client-ip", "x-forwarded-for"],
+    },
   },
   rateLimit: {
     // In-memory limiter covers auth endpoints per process (docs/plan/03 §4);
@@ -119,6 +126,12 @@ export const auth = betterAuth({
     enabled: true,
     window: 60,
     max: 20,
+    customRules: {
+      // Public pages probe the session once per load to swap the CTA. That is a
+      // cheap read, not a credential attempt: normal browsing must not hit the
+      // 20/min login ceiling and log 429s in the browser console.
+      "/get-session": { window: 60, max: 300 },
+    },
   },
   socialProviders: {
     // OAuth providers are enabled only when credentials exist; none are needed

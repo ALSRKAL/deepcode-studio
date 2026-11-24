@@ -27,6 +27,33 @@ export async function GET(request: Request): Promise<Response> {
     });
   }
 
+  const key = `${channel}:${dbPlatform}:${dbArch}`;
+  const now = Date.now();
+  let cached = manifestCache.get(key);
+  if (!cached || cached.expiresAt <= now) {
+    // One database read per platform per TTL, shared by every concurrent request
+    // (2026-11-21 load test: 75 req/s at 1.2 s; every desktop polls this endpoint).
+    const pending = buildManifest(channel, dbPlatform, dbArch);
+    cached = { expiresAt: now + MANIFEST_CACHE_TTL_MS, result: pending };
+    manifestCache.set(key, cached);
+    // A failed read must not stay cached.
+    pending.catch(() => {
+      if (manifestCache.get(key)?.result === pending) manifestCache.delete(key);
+    });
+  }
+  const result = await cached.result;
+  return new Response(result.body, { status: result.status, headers: result.headers });
+}
+
+type ManifestResult = { status: number; body: string; headers: Record<string, string> };
+const MANIFEST_CACHE_TTL_MS = 30_000;
+const manifestCache = new Map<string, { expiresAt: number; result: Promise<ManifestResult> }>();
+
+async function buildManifest(
+  channel: "stable" | "preview",
+  dbPlatform: "win" | "mac" | "linux",
+  dbArch: "x64" | "arm64",
+): Promise<ManifestResult> {
   const [latest] = await db()
     .db.select()
     .from(releases)
@@ -42,10 +69,11 @@ export async function GET(request: Request): Promise<Response> {
     .limit(1);
 
   if (!latest) {
-    return new Response(JSON.stringify({ error: { code: "not_found" } }), {
+    return {
       status: 404,
+      body: JSON.stringify({ error: { code: "not_found" } }),
       headers: { "content-type": "application/json", "cache-control": "no-store" },
-    });
+    };
   }
 
   // Every installer of that version: the desktop keeps the one its updater can install
@@ -79,11 +107,9 @@ export async function GET(request: Request): Promise<Response> {
     files: rows.map((r) => ({ url: r.url, sha2: r.sha256.toLowerCase(), size: Number(r.sizeBytes) })),
   });
 
-  return new Response(stringify(manifest), {
+  return {
     status: 200,
-    headers: {
-      "content-type": "text/yaml; charset=utf-8",
-      "cache-control": "public, max-age=60",
-    },
-  });
+    body: stringify(manifest),
+    headers: { "content-type": "text/yaml; charset=utf-8", "cache-control": "public, max-age=60" },
+  };
 }

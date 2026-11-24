@@ -20,6 +20,13 @@ const EnvSchema = z.object({
   MAX_REQUEST_BODY_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
   // Bounded by the gateway heap (160 MB on the free host): parse + shrink stays well under it.
   MAX_REQUEST_BODY_HARD_BYTES: z.coerce.number().int().positive().default(24 * 1024 * 1024),
+  /**
+   * Hard cap on estimated input tokens per request (docs/plan/06 §4). The catalog
+   * now serves 1M-context models (HungerG, DeepSeek, GLM, Kimi, Gemini), so the
+   * guard sits above every native window plus estimator slack: it only stops
+   * runaway requests, never a legitimate 1M-context request. 0 disables the cap.
+   */
+  MAX_REQUEST_INPUT_TOKENS: z.coerce.number().int().min(0).default(1_100_000),
   TRUST_PROXY: z
     .enum(["true", "false"])
     .default("false")
@@ -57,6 +64,8 @@ export interface GatewayConfig {
   maxRequestBodyBytes: number;
   /** Bodies between the normal limit and this are read and shrunk; above it, compaction is asked for. */
   maxRequestBodyHardBytes: number;
+  /** Estimated input-token ceiling per request; 0 turns the check off. */
+  maxRequestInputTokens: number;
   trustProxy: boolean;
   logLevel: "debug" | "info" | "warn" | "error";
   /** Max upstream attempts per request (doc 02 §5.2). */
@@ -100,6 +109,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     bodyIdleTimeoutMs: e.UPSTREAM_BODY_IDLE_TIMEOUT_MS,
     maxRequestBodyBytes: e.MAX_REQUEST_BODY_BYTES,
     maxRequestBodyHardBytes: Math.max(e.MAX_REQUEST_BODY_HARD_BYTES, e.MAX_REQUEST_BODY_BYTES),
+    maxRequestInputTokens: e.MAX_REQUEST_INPUT_TOKENS,
     trustProxy: e.TRUST_PROXY,
     logLevel: e.LOG_LEVEL,
     maxAttempts: 3,

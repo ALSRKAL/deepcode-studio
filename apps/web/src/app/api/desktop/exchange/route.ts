@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   DesktopExchangeRequestSchema,
   DesktopExchangeResponseSchema,
@@ -56,7 +57,14 @@ export async function POST(request: Request): Promise<Response> {
   // load without letting one client block every desktop sign-in (review). The
   // 256-bit single-use code makes guessing impractical either way.
   const bucket = limiterKey(clientIpFromHeaders(request.headers, { trustProxy: env.TRUST_PROXY, hops: env.TRUSTED_PROXY_HOPS }));
-  const limit = await rateLimit(`exchange:${bucket.key}`, bucket.shared ? 600 : 10, 60);
+  // Hash the client-derived bucket before it becomes a Redis key; the limiter only
+  // needs identity, and a fixed hex key can never carry separators or control bytes.
+  const bucketId = createHash("sha256").update(bucket.key).digest("hex").slice(0, 32);
+  // Generated above, but keep the Redis key to a fixed hex shape at this boundary.
+  if (!/^[0-9a-f]{32}$/.test(bucketId)) {
+    return jsonResponse({ error: { code: "invalid_request" } }, 400);
+  }
+  const limit = await rateLimit(`exchange:${bucketId}`, bucket.shared ? 600 : 10, 60);
   if (!limit.allowed) {
     return jsonResponse({ error: { code: "rate_limited" } }, 429, { "retry-after": String(limit.resetSec) });
   }

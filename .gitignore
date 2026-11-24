@@ -23,10 +23,10 @@ apps/desktop/
 # Next.js build output (never commit build artifacts)
 apps/web/.next/
 
-# Playwright run artifacts (failure traces/screenshots are local-only; the
-# review screenshots under apps/web/e2e/screenshots are committed separately)
+# Test/audit run artifacts (traces, screenshots, Lighthouse reports are local-only)
 apps/web/test-results/
 apps/web/playwright-report/
+apps/web/.lighthouseci/
 infra/render/secrets.env
 .claude/
 infra/render/render.env
@@ -34,3 +34,6 @@ infra/neon/
 
 *.apk
 infra/home/home.env
+
+# Home server runtime data
+infra/home/storage/

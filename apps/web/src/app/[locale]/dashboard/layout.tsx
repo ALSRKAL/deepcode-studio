@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { requireUser } from "@/lib/guards";
 import { LocaleLink } from "@/components/locale-link";
 import { BrandMark, BrandWordmark } from "@/components/brand";
 import { SignOutButton } from "@/components/dashboard-shell";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function DashboardLayout({
   children,
@@ -52,3 +55,6 @@ export default async function DashboardLayout({
     </div>
   );
 }
+
+// Per-user pages: never cached, whatever the parent layout allows (see [locale]/layout.tsx).
+export const dynamic = "force-dynamic";

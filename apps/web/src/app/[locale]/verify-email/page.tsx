@@ -1,18 +1,49 @@
 import { getTranslations } from "next-intl/server";
-import { AuthBrand } from "@/components/auth-brand";
+import { AuthShell } from "@/components/auth-shell";
+import { ResendVerificationForm } from "@/components/auth-forms";
+import { LocaleLink } from "@/components/locale-link";
+import { noindexMetadata } from "@/lib/seo";
 
-export default async function VerifyEmailPage({ params }: { params: Promise<{ locale: string }> }) {
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale: raw } = await params;
+  const locale = raw === "en" ? "en" : "ar";
+  const t = await getTranslations({ locale, namespace: "auth" });
+  return noindexMetadata({
+    locale,
+    path: "/verify-email",
+    title: t("verifyTitle"),
+    description: t("verifyBody"),
+  });
+}
+
+export default async function VerifyEmailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ sent?: string }>;
+}) {
   const { locale } = await params;
+  const { sent } = await searchParams;
   const t = await getTranslations("auth");
   return (
-    <main className="mx-auto grid min-h-dvh w-full max-w-sm place-content-center gap-4 px-4 text-center">
-      <AuthBrand locale={locale} />
-      <h1 className="text-scale-lg font-semibold">{t("verifyTitle")}</h1>
-      <p className="text-fg-muted text-[14px] leading-6">{t("verifyBody")}</p>
-      {/* Local dev prints the verification URL to the console / Mailpit UI. */}
-      <p className="text-fg-subtle text-[13px] tabular" dir="ltr">
-        {new URL(`/${locale}/sign-in`, process.env.APP_URL ?? "http://localhost:3210").toString()}
-      </p>
-    </main>
+    <AuthShell locale={locale}>
+      <h1 className="text-scale-lg font-semibold text-center">{t("verifyTitle")}</h1>
+      <p className="text-center text-[14px] leading-6 text-fg-muted">{t("verifyBody")}</p>
+      {sent ? (
+        <p role="status" className="rounded-sm border border-success/40 bg-success/5 px-3 py-2 text-[13px] text-success">
+          {t("verifyResendSent")}
+        </p>
+      ) : null}
+      <div className="grid gap-3">
+        <p className="text-[13px] text-fg-subtle">{t("verifyHelp")}</p>
+        <ResendVerificationForm />
+      </div>
+      <LocaleLink locale={locale} href="/sign-in" className="text-center text-[14px] text-primary hover:underline underline-offset-2">
+        {t("signInInstead")}
+      </LocaleLink>
+    </AuthShell>
   );
 }

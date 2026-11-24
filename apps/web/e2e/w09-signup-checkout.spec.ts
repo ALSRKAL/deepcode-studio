@@ -18,7 +18,9 @@ test("sign-up, mock checkout, dashboard shows the active plan", async ({ page })
   await page.goto("/ar/sign-up");
   await page.getByLabel(/الاسم|Name/).fill("E2E User");
   await page.getByLabel(/البريد الإلكتروني|Email/).fill(email);
-  await page.getByLabel(/كلمة المرور|Password/).last().fill("correct horse battery");
+  await page.getByLabel(/كلمة المرور|Password/).first().fill("correct horse battery");
+  await page.getByLabel(/تأكيد كلمة المرور|Confirm password/).fill("correct horse battery");
+  await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: /إنشاء الحساب|Create account/ }).click();
   await expect(page).toHaveURL(/verify-email/);
 
@@ -27,11 +29,11 @@ test("sign-up, mock checkout, dashboard shows the active plan", async ({ page })
   let token: string | null = null;
   for (let i = 0; i < 20 && !token; i += 1) {
     try {
-      const res = await fetch(`${mailApi}/api/v1/messages?limit=20`);
+      const res = await page.request.get(`${mailApi}/api/v1/messages?limit=20`);
       const data = (await res.json()) as { messages: Array<{ ID: string; To: Array<{ Address: string }> }> };
       const message = data.messages.find((m) => m.To.some((t) => t.Address === email));
       if (message) {
-        const detail = (await (await fetch(`${mailApi}/api/v1/message/${message.ID}`)).json()) as { Text: string };
+        const detail = (await (await page.request.get(`${mailApi}/api/v1/message/${message.ID}`)).json()) as { Text: string };
         token = /token=([^&\s]+)/.exec(detail.Text)?.[1] ?? null;
       }
     } catch {

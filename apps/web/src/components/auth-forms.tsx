@@ -7,6 +7,8 @@ import {
   signInAction,
   signUpAction,
   requestPasswordResetAction,
+  resetPasswordAction,
+  resendVerificationAction,
   googleSignInAction,
   verifySignInTwoFactorAction,
 } from "@/actions/auth";
@@ -18,6 +20,7 @@ function Field({
   autoComplete,
   required = true,
   min,
+  dir,
 }: {
   label: string;
   name: string;
@@ -25,6 +28,7 @@ function Field({
   autoComplete?: string;
   required?: boolean;
   min?: number;
+  dir?: "ltr" | "rtl";
 }) {
   const { pending } = useFormStatus();
   return (
@@ -36,8 +40,9 @@ function Field({
         autoComplete={autoComplete}
         required={required}
         minLength={min}
+        dir={dir}
         disabled={pending}
-        className="h-10 rounded-sm border border-border bg-surface px-3 text-[14px] text-fg placeholder:text-fg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
+        className="h-11 rounded-sm border border-border bg-surface px-3 text-[14px] text-fg placeholder:text-fg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
       />
     </label>
   );
@@ -55,8 +60,8 @@ export function SignInForm({ returnTo }: { returnTo?: string }) {
           {t(`errors.${state.error}`)}
         </p>
       ) : null}
-      <Field label={t("email")} name="email" type="email" autoComplete="email" />
-      <Field label={t("password")} name="password" type="password" autoComplete="current-password" />
+      <Field label={t("email")} name="email" type="email" autoComplete="email" dir="ltr" />
+      <Field label={t("password")} name="password" type="password" autoComplete="current-password" dir="ltr" />
       <AuthSubmit>{t("submitSignIn")}</AuthSubmit>
     </form>
   );
@@ -103,7 +108,7 @@ function GoogleSubmit({ label }: { label: string }) {
       type="submit"
       disabled={pending}
       aria-busy={pending}
-      className="inline-flex h-10 items-center justify-center gap-2 rounded-sm border border-border bg-surface px-4 text-[14px] font-medium text-fg hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
+      className="inline-flex h-11 items-center justify-center gap-2 rounded-sm border border-border bg-surface px-4 text-[14px] font-medium text-fg hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
     >
       <svg aria-hidden="true" viewBox="0 0 48 48" className="size-[18px] shrink-0">
         <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
@@ -135,7 +140,7 @@ export function GoogleSignIn({ locale, returnTo }: { locale: string; returnTo?: 
   );
 }
 
-export function SignUpForm() {
+export function SignUpForm({ locale }: { locale: string }) {
   const t = useTranslations("auth");
   const [state, action] = useActionState(signUpAction, {});
   return (
@@ -146,9 +151,60 @@ export function SignUpForm() {
         </p>
       ) : null}
       <Field label={t("name")} name="name" autoComplete="name" />
-      <Field label={t("email")} name="email" type="email" autoComplete="email" />
-      <Field label={t("password")} name="password" type="password" autoComplete="new-password" min={10} />
+      <Field label={t("email")} name="email" type="email" autoComplete="email" dir="ltr" />
+      <Field label={t("password")} name="password" type="password" autoComplete="new-password" min={10} dir="ltr" />
+      <p className="-mt-2 text-[13px] text-fg-subtle">{t("passwordHint")}</p>
+      <Field label={t("confirmPassword")} name="confirmPassword" type="password" autoComplete="new-password" min={10} dir="ltr" />
+      <label className="flex items-start gap-2 text-[13px] leading-6 text-fg-muted">
+        <input type="checkbox" name="acceptTerms" required className="mt-1 size-4 shrink-0 accent-[var(--color-primary)]" />
+        <span>
+          {t("consentPrefix")}{" "}
+          <a href={`/${locale}/legal/terms`} className="text-primary hover:underline underline-offset-2">
+            {t("terms")}
+          </a>{" "}
+          {t("and")}{" "}
+          <a href={`/${locale}/legal/privacy`} className="text-primary hover:underline underline-offset-2">
+            {t("privacy")}
+          </a>
+          .
+        </span>
+      </label>
       <AuthSubmit>{t("submitSignUp")}</AuthSubmit>
+    </form>
+  );
+}
+
+export function ResetPasswordForm({ token }: { token: string }) {
+  const t = useTranslations("auth");
+  const [state, action] = useActionState(resetPasswordAction, {});
+  return (
+    <form action={action} className="grid gap-4">
+      <input type="hidden" name="token" value={token} />
+      {state.error ? (
+        <p role="alert" className="rounded-sm border border-danger/40 bg-danger/5 px-3 py-2 text-[13px] text-danger">
+          {t(`errors.${state.error}`)}
+        </p>
+      ) : null}
+      <Field label={t("newPassword")} name="password" type="password" autoComplete="new-password" min={10} dir="ltr" />
+      <p className="-mt-2 text-[13px] text-fg-subtle">{t("passwordHint")}</p>
+      <Field label={t("confirmPassword")} name="confirmPassword" type="password" autoComplete="new-password" min={10} dir="ltr" />
+      <AuthSubmit>{t("resetSubmit")}</AuthSubmit>
+    </form>
+  );
+}
+
+export function ResendVerificationForm() {
+  const t = useTranslations("auth");
+  const [state, action] = useActionState(resendVerificationAction, {});
+  return (
+    <form action={action} className="grid gap-4">
+      {state.error ? (
+        <p role="alert" className="rounded-sm border border-danger/40 bg-danger/5 px-3 py-2 text-[13px] text-danger">
+          {t(`errors.${state.error}`)}
+        </p>
+      ) : null}
+      <Field label={t("resendEmail")} name="email" type="email" autoComplete="email" dir="ltr" />
+      <AuthSubmit>{t("resendSubmit")}</AuthSubmit>
     </form>
   );
 }
@@ -172,7 +228,7 @@ function AuthSubmit({ children }: { children: React.ReactNode }) {
       type="submit"
       disabled={pending}
       aria-busy={pending}
-      className="h-10 rounded-sm bg-primary text-primary-fg font-medium hover:bg-primary-hover transition-colors duration-200 ease-out disabled:opacity-50"
+      className="h-11 rounded-sm bg-primary text-primary-fg font-medium hover:bg-primary-hover transition-colors duration-200 ease-out disabled:opacity-50"
     >
       {pending ? "…" : children}
     </button>

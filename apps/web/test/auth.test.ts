@@ -74,7 +74,7 @@ describe("auth flows (W-01)", () => {
       .signInEmail({ body: { email: `ghost-${randomUUID()}@test.local`, password } })
       .catch((e: Error) => e.message);
     const wrong = await auth.api
-      .signInEmail({ body: { email, password: "not-the-password-xx" } })
+      .signInEmail({ body: { email, password: `${password}-wrong` } })
       .catch((e: Error) => e.message);
     expect(unknown).toMatch(/Invalid email or password|invalid_credentials/i);
     expect(wrong).toMatch(/Invalid email or password|invalid_credentials/i);

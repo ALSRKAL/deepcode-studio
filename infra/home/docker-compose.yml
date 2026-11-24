@@ -1,5 +1,9 @@
 # DeepCode Studio on your own computer, as the main server behind Tailscale Funnel.
-# The Render server stays the public address and takes over when this one is off.
+#
+# Postgres and Redis run next to the app, so there is no Neon compute-hour cap,
+# no Redis Cloud 30 MB / 100 ops/s cap, and no cross-region latency. The same
+# image and the same code run here and on any host.
+#
 # See README.md in this folder.
 name: deepcode-home
 services:
@@ -8,17 +12,69 @@ services:
       context: ../..
       dockerfile: infra/render/Dockerfile
     image: deepcode-home:latest
-    # Same database, Redis and secrets as production; home.env adds the home role.
+    # render.env holds the shared production secrets; home.env overrides the
+    # public URL and the database/cache targets below.
     env_file:
       - ../render/render.env
       - ./home.env
     environment:
       PORT: "10000"
       DEEPCODE_ROLE: home
+      # Passwords live in infra/home/.env (gitignored), never in this file.
+      DATABASE_URL: postgresql://deepcode:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/home/.env}@postgres:5432/deepcode
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in infra/home/.env}@redis:6379
+      # Estimated input-token guard per request; 0 disables. Above every native window
+      # (1M + estimator slack) so a 1M-context model is never rejected by the guard
+      # (docs/plan/06 §4, 2026-11-24).
+      MAX_REQUEST_INPUT_TOKENS: "1100000"
     ports:
       # Only this computer (and Tailscale Funnel) can reach it; nothing is opened on the router.
       - "127.0.0.1:10000:10000"
+    volumes:
+      # Mount the Caddy config so changing it needs a restart, not a full rebuild.
+      - ../render/caddy:/app/caddy:ro
+      # Uploaded skill archives must survive container restarts (docs/plan/03 §6.4).
+      - ./storage:/app/web/apps/web/.storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     stop_grace_period: 20s
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: deepcode
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/home/.env}
+      POSTGRES_DB: deepcode
+    volumes:
+      # PostgreSQL 18 keeps PGDATA under /var/lib/postgresql/18/docker.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deepcode -d deepcode"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in infra/home/.env}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in infra/home/.env}
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
