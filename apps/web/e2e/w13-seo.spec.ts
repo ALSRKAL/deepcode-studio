@@ -37,7 +37,7 @@ for (const locale of ["ar", "en"] as const) {
       const ogUrl = await page.locator('meta[property="og:url"]').getAttribute("content");
       expect(ogUrl).toContain(expectedPath);
       const ogImage = await page.locator('meta[property="og:image"]').getAttribute("content");
-      expect(ogImage).toContain("/api/og");
+      expect(ogImage).toMatch(/\/api\/og|\/og\/card-/);
       for (const lang of ["ar", "en", "x-default"]) {
         await expect(page.locator(`link[rel="alternate"][hreflang="${lang}"]`)).toHaveCount(1);
       }

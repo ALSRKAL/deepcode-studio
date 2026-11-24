@@ -6,6 +6,25 @@ export const SITE_NAME = "DeepCode Studio";
 export const OG_WIDTH = 1200;
 export const OG_HEIGHT = 630;
 
+/**
+ * Arabic cards are pre-rendered with Chromium: Satori shapes Arabic glyphs but
+ * distributes RTL word spacing poorly. English cards stay dynamic per page.
+ */
+const ARABIC_CARDS: Record<string, string> = {
+  "/": "/og/card-home-ar.png",
+  "/pricing": "/og/card-pricing-ar.png",
+  "/download": "/og/card-download-ar.png",
+  "/docs": "/og/card-docs-ar.png",
+  "/changelog": "/og/card-changelog-ar.png",
+  "/contact": "/og/card-contact-ar.png",
+  "/security": "/og/card-security-ar.png",
+};
+
+function cardFor(locale: SiteLocale, path: string): string | undefined {
+  if (locale !== "ar") return undefined;
+  return path.startsWith("/legal/") ? "/og/card-legal-ar.png" : ARABIC_CARDS[path];
+}
+
 /** `/${locale}` for the home page, `/${locale}/path` otherwise. */
 export function pathWithLocale(locale: SiteLocale, path: string): string {
   const clean = path === "/" || path === "" ? "" : path.startsWith("/") ? path : `/${path}`;
@@ -46,7 +65,7 @@ export function pageMetadata({
 }): Metadata {
   const canonical = absoluteUrl(pathWithLocale(locale, path));
   const fullTitle = title.includes(SITE_NAME) ? title : `${title} · ${SITE_NAME}`;
-  const imageUrl = absoluteUrl(image ?? `/api/og?locale=${locale}&title=${encodeURIComponent(title)}`);
+  const imageUrl = absoluteUrl(image ?? cardFor(locale, path) ?? `/api/og?locale=${locale}&title=${encodeURIComponent(title)}`);
   const shortDescription = clampDescription(description);
   const other = locale === "ar" ? "en" : "ar";
   const languages = {
