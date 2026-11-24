@@ -34,7 +34,7 @@ for (const [os, label] of [
       // One recommendation per OS: Apple Silicon on macOS, x64 on Windows/Linux.
       await expect(page.getByText(/Recommended for your device/)).toHaveCount(1);
     } else {
-      await expect(page.getByText(/No published releases yet/)).toBeVisible();
+      await expect(page.getByText(/No published releases yet/).first()).toBeVisible();
     }
     await ctx.close();
   });

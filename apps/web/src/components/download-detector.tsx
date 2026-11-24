@@ -34,9 +34,8 @@ export function DownloadDetector({ builds }: { builds: Build[] }) {
     .map((option) => ({ ...option, build: findBuild(builds, option.platform, option.arch, option.kind) }))
     .filter((option): option is typeof option & { build: Build } => Boolean(option.build));
 
-  if (builds.length === 0) {
-    return <p className="text-[15px] text-fg-muted">{t("noReleases")}</p>;
-  }
+  // The build matrix below owns the single empty state.
+  if (builds.length === 0) return null;
 
   return (
     <div className="grid gap-4">
