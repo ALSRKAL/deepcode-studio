@@ -5,7 +5,22 @@ import AxeBuilder from "@axe-core/playwright";
  * W-11: axe on every public + auth page in ar and en — zero serious or critical
  * violations; keyboard-only pass of sign-up and key creation.
  */
-const PAGES = ["/", "/pricing", "/download", "/sign-in", "/sign-up", "/legal/terms"];
+const PAGES = [
+  "/",
+  "/pricing",
+  "/download",
+  "/docs",
+  "/changelog",
+  "/contact",
+  "/security",
+  "/sign-in",
+  "/sign-up",
+  "/forgot-password",
+  "/verify-email",
+  "/reset-password",
+  "/legal/terms",
+  "/legal/privacy",
+];
 
 for (const locale of ["ar", "en"] as const) {
   for (const path of PAGES) {
@@ -23,7 +38,8 @@ for (const locale of ["ar", "en"] as const) {
 
 test("keyboard-only pass of sign-up (ar)", async ({ page }) => {
   await page.goto("/ar/sign-up");
-  await page.keyboard.press("Tab"); // first field (name)
+  await page.locator("body").click({ position: { x: 2, y: 2 } });
+  await page.keyboard.press("Tab"); // first focusable control
   await expect(page.locator(":focus")).toBeVisible();
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");

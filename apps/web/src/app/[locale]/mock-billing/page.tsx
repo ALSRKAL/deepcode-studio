@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -14,6 +15,8 @@ import { LtrIsland } from "@/components/ltr-island";
  * the owning user, with a pending session, can press pay — which posts a signed
  * webhook through the same machinery as a real provider.
  */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
+
 export default async function MockBillingPage({
   params,
   searchParams,

@@ -38,7 +38,7 @@ export function SectionTitle({
 }) {
   return (
     <div className="mb-8">
-      <Tag className="text-scale-lg font-semibold">{children}</Tag>
+      <Tag className={Tag === "h1" ? "text-display-sm font-semibold tracking-[-0.02em] [html[lang=ar]_&]:tracking-normal" : "text-scale-lg font-semibold"}>{children}</Tag>
       {sub ? <p className="mt-2 text-fg-muted text-[15px] leading-7 max-w-prose">{sub}</p> : null}
     </div>
   );

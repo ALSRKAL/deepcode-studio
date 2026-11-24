@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * W-10: the download centre picks the right primary build for Windows, macOS
- * (Apple Silicon first) and Linux x64/arm64 user agents. The primary block is
- * driven by client-side detection — emulate the UA per test.
+ * W-10: the download centre always renders every desktop choice in the initial
+ * HTML, then marks the detected platform. Detection logic itself is unit-tested
+ * in test/download.test.ts; this spec checks the page contract and no-JS state.
  */
 const ua = (os: string) => {
   switch (os) {
@@ -18,30 +18,31 @@ const ua = (os: string) => {
   }
 };
 
-test.describe("download detection", () => {
-  test("windows x64 → .exe primary", async ({ browser }) => {
-    const ctx = await browser.newContext({ userAgent: ua("win"), locale: "en" });
+for (const [os, label] of [
+  ["win", /Windows/],
+  ["mac", /macOS/],
+  ["linux", /Linux/],
+] as const) {
+  test(`${os} sees the desktop build choices`, async ({ browser }) => {
+    const ctx = await browser.newContext({ userAgent: ua(os), locale: "en" });
     const page = await ctx.newPage();
     await page.goto("/en/download");
-    // No releases published in dev seed → the block reports no matching build
-    // but must not crash; the matrix states its empty state.
-    await expect(page.getByText(/Build for your machine|البنية المناسبة/)).toBeVisible();
+    await expect(page.locator("h1")).toContainText(/Download/);
+    const buildLinks = page.locator('a[href*="/releases/download/"]');
+    if ((await buildLinks.count()) > 0) {
+      await expect(page.getByText(label).first()).toBeVisible();
+      // One recommendation per OS: Apple Silicon on macOS, x64 on Windows/Linux.
+      await expect(page.getByText(/Recommended for your device/)).toHaveCount(1);
+    } else {
+      await expect(page.getByText(/No published releases yet/).first()).toBeVisible();
+    }
     await ctx.close();
   });
+}
 
-  test("mac shows the Apple Silicon first policy text", async ({ browser }) => {
-    const ctx = await browser.newContext({ userAgent: ua("mac"), locale: "en" });
-    const page = await ctx.newPage();
-    await page.goto("/en/download");
-    await expect(page.locator("h1")).toContainText(/Download|تنزيل/);
-    await ctx.close();
-  });
-
-  test("linux x64 → AppImage primary", async ({ browser }) => {
-    const ctx = await browser.newContext({ userAgent: ua("linux"), locale: "en" });
-    const page = await ctx.newPage();
-    await page.goto("/en/download");
-    await expect(page.getByText(/Build for your machine|البنية المناسبة/)).toBeVisible();
-    await ctx.close();
-  });
+test("the install commands are server-rendered", async ({ page }) => {
+  await page.goto("/en/download");
+  await expect(page.getByText(/Install with one command/)).toBeVisible();
+  await expect(page.locator("code").filter({ hasText: "install.ps1" })).toBeVisible();
+  await expect(page.locator("code").filter({ hasText: "install.sh" })).toBeVisible();
 });

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -18,6 +19,8 @@ import { LocaleLink } from "@/components/locale-link";
  * UPI QR payment page (owner decision 2026-11-15): scan → pay → submit UTR →
  * wait for the admin's confirmation. Only the owner of the payment can see it.
  */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
+
 export default async function UpiPayPage({
   params,
   searchParams,

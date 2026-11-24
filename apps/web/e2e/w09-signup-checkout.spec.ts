@@ -18,7 +18,9 @@ test("sign-up, mock checkout, dashboard shows the active plan", async ({ page })
   await page.goto("/ar/sign-up");
   await page.getByLabel(/الاسم|Name/).fill("E2E User");
   await page.getByLabel(/البريد الإلكتروني|Email/).fill(email);
-  await page.getByLabel(/كلمة المرور|Password/).last().fill("correct horse battery");
+  await page.getByLabel(/كلمة المرور|Password/).first().fill("correct horse battery");
+  await page.getByLabel(/تأكيد كلمة المرور|Confirm password/).fill("correct horse battery");
+  await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: /إنشاء الحساب|Create account/ }).click();
   await expect(page).toHaveURL(/verify-email/);
 

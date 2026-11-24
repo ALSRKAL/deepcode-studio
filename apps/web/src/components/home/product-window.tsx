@@ -43,7 +43,7 @@ export async function ProductWindow() {
       <div className="grid min-h-[300px] grid-cols-1 md:min-h-[380px] md:grid-cols-[200px_minmax(0,1fr)] lg:grid-cols-[200px_minmax(0,1fr)_minmax(0,1fr)]" aria-hidden="true">
         {/* Tasks */}
         <aside className="hidden border-e border-ink-line bg-ink-2/60 p-3 md:block">
-          <p className="px-2 pb-2 text-[11px] font-medium uppercase tracking-wider text-ink-muted">{t("winTasks")}</p>
+          <p className="px-2 pb-2 text-[11px] font-medium uppercase tracking-wider text-ink-muted [html[lang=ar]_&]:normal-case [html[lang=ar]_&]:tracking-normal">{t("winTasks")}</p>
           <ul className="grid gap-1 text-[13px]">
             <li className="flex items-center gap-2 rounded-md bg-ink-3 px-2 py-1.5 text-ink-fg">
               <span className="h-1.5 w-1.5 rounded-full bg-accent-glow" />
@@ -108,7 +108,7 @@ export async function ProductWindow() {
           </pre>
           <div className="border-t border-ink-line bg-[#060a14] px-4 py-3 font-mono text-[11.5px] leading-5">
             <p className="text-ink-muted">$ pnpm test signup</p>
-            <p className="text-[#34d399]">✓ 12 passed <span className="text-ink-muted">(1.4s)</span></p>
+            <p className="text-code-add">✓ tests passed</p>
           </div>
         </section>
       </div>

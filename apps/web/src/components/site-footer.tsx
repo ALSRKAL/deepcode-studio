@@ -1,61 +1,61 @@
 import { getLocale, getTranslations } from "next-intl/server";
+import Link from "next/link";
 import { BrandMark, BrandWordmark } from "./brand";
-import { ButtonLink } from "./ui/button";
+import { LocaleSwitcher } from "./locale-switcher";
+
+const GITHUB_DESKTOP = "https://github.com/ALSRKAL/deepcode-desktop";
+const GITHUB_ACTIONS = "https://github.com/ALSRKAL/deepcode-studio/actions";
 
 export async function SiteFooter() {
   const t = await getTranslations("footer");
-  const locale = await getLocale();
-  // Locale-prefixed hrefs: no extra redirect through the middleware per click.
-  const L = (path: string) => `/${locale}${path === "/" ? "" : path}`;
   const n = await getTranslations("nav");
+  const locale = await getLocale();
+  const L = (path: string) => `/${locale}${path === "/" ? "" : path}`;
   const year = new Date().getFullYear();
+  const linkClass = "inline-flex min-h-11 items-center text-[14px] text-fg-muted hover:text-fg";
   return (
-    <footer className="border-t border-border mt-24">
-      <div className="mx-auto max-w-6xl px-4 py-10 grid gap-8 md:grid-cols-4 items-start text-[14px]">
-        <div className="flex items-center gap-2 self-start">
-          <BrandMark size={16} />
-          <BrandWordmark className="font-semibold" />
+    <footer className="mt-24 border-t border-border">
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 md:grid-cols-[1.2fr_1fr_1fr_1fr]">
+        <div className="grid content-start gap-3">
+          <Link href={L("/")} className="inline-flex items-center gap-2" aria-label="DeepCode Studio">
+            <BrandMark size={18} />
+            <BrandWordmark className="font-semibold" />
+          </Link>
+          <p className="max-w-[22rem] text-[13px] leading-6 text-fg-subtle">{t("tagline")}</p>
         </div>
-        <nav aria-label={n("product")} className="grid content-start gap-2 text-fg-muted">
-          <p className="text-fg font-medium">{n("product")}</p>
-          <ButtonLink href={L("/download")} variant="ghost" size="sm" className="!px-0 justify-start">
-            {n("download")}
-          </ButtonLink>
-          <ButtonLink href={L("/pricing")} variant="ghost" size="sm" className="!px-0 justify-start">
-            {n("pricing")}
-          </ButtonLink>
-          <ButtonLink href={L("/changelog")} variant="ghost" size="sm" className="!px-0 justify-start">
-            {n("changelog")}
-          </ButtonLink>
+        <nav aria-label={n("product")} className="grid content-start gap-1">
+          <p className="mb-1 text-[13px] font-medium text-fg">{n("product")}</p>
+          <Link className={linkClass} href={L("/download")}>{n("download")}</Link>
+          <Link className={linkClass} href={L("/pricing")}>{n("pricing")}</Link>
+          <Link className={linkClass} href={L("/docs")}>{n("docs")}</Link>
+          <Link className={linkClass} href={L("/changelog")}>{n("changelog")}</Link>
         </nav>
-        <nav aria-label={t("legal")} className="grid content-start gap-2 text-fg-muted">
-          <p className="text-fg font-medium">{t("legal")}</p>
-          <ButtonLink href={L("/legal/terms")} variant="ghost" size="sm" className="!px-0 justify-start">
-            {t("terms")}
-          </ButtonLink>
-          <ButtonLink href={L("/legal/privacy")} variant="ghost" size="sm" className="!px-0 justify-start">
-            {t("privacy")}
-          </ButtonLink>
-          <ButtonLink href={L("/legal/acceptable-use")} variant="ghost" size="sm" className="!px-0 justify-start">
-            {t("acceptableUse")}
-          </ButtonLink>
-          <ButtonLink href={L("/legal/licenses")} variant="ghost" size="sm" className="!px-0 justify-start">
-            {t("licenses")}
-          </ButtonLink>
+        <nav aria-label={t("resources")} className="grid content-start gap-1">
+          <p className="mb-1 text-[13px] font-medium text-fg">{t("resources")}</p>
+          <Link className={linkClass} href={L("/contact")}>{t("support")}</Link>
+          <Link className={linkClass} href={L("/security")}>{t("security")}</Link>
+          <a className={linkClass} href={GITHUB_ACTIONS} target="_blank" rel="noreferrer">
+            {t("status")}
+          </a>
+          <a className={linkClass} href={GITHUB_DESKTOP} target="_blank" rel="noreferrer">
+            {t("github")}
+          </a>
         </nav>
-        <div className="grid content-start gap-2 text-fg-muted">
-          <p className="text-fg font-medium">{n("language")}</p>
-          {/* ?locale= makes the middleware remember the choice in a cookie. */}
-          <div className="flex gap-3">
-            <a href={`/${locale}?locale=ar`} lang="ar" aria-current={locale === "ar" ? "true" : undefined} className="hover:text-fg aria-[current]:text-fg aria-[current]:font-medium">
-              العربية
-            </a>
-            <a href={`/${locale}?locale=en`} lang="en" aria-current={locale === "en" ? "true" : undefined} className="hover:text-fg aria-[current]:text-fg aria-[current]:font-medium">
-              English
-            </a>
+        <nav aria-label={t("legal")} className="grid content-start gap-1">
+          <p className="mb-1 text-[13px] font-medium text-fg">{t("legal")}</p>
+          <Link className={linkClass} href={L("/legal/terms")}>{t("terms")}</Link>
+          <Link className={linkClass} href={L("/legal/privacy")}>{t("privacy")}</Link>
+          <Link className={linkClass} href={L("/legal/acceptable-use")}>{t("acceptableUse")}</Link>
+          <Link className={linkClass} href={L("/legal/licenses")}>{t("licenses")}</Link>
+        </nav>
+      </div>
+      <div className="border-t border-border">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-[13px] text-fg-subtle">
+          <div className="flex items-center gap-3">
+            <LocaleSwitcher />
+            <span className="tabular">© {year} DeepCode Studio</span>
           </div>
-          <p className="text-fg-subtle">{t("basedOn")}</p>
-          <p className="text-fg-subtle tabular">© {year} DeepCode Studio</p>
+          <p>{t("basedOn")}</p>
         </div>
       </div>
     </footer>

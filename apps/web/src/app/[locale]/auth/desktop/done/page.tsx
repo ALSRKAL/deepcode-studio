@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { CopyButton } from "@/components/ui/client";
 import { Card } from "@/components/ui/primitives";
 import { LtrIsland } from "@/components/ltr-island";
+import { noindexMetadata } from "@/lib/seo";
 
 /**
  * Handoff after approval (docs/plan/03 §4.1 step 5): navigates to
@@ -10,6 +11,13 @@ import { LtrIsland } from "@/components/ltr-island";
  * fallback — the code is single-use, 60-second, and worthless without the
  * verifier that never leaves the desktop app.
  */
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale: raw } = await params;
+  const locale = raw === "en" ? "en" : "ar";
+  const t = await getTranslations({ locale, namespace: "desktop" });
+  return noindexMetadata({ locale, path: "/auth/desktop/done", title: t("doneTitle"), description: t("doneBody") });
+}
+
 export default async function DesktopAuthDonePage({
   params,
   searchParams,

@@ -7,7 +7,7 @@ export function buttonClass(
 ): string {
   const base =
     "inline-flex items-center justify-center gap-2 rounded-sm font-medium transition-[background-color,border-color,color] duration-200 ease-out disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
-  const sizes = size === "sm" ? "h-8 px-3 text-[13px]" : size === "lg" ? "h-11 px-5 text-[15px]" : "h-10 px-4 text-[14px]";
+  const sizes = size === "sm" ? "h-11 px-3 text-[13px]" : size === "lg" ? "h-12 px-5 text-[15px]" : "h-11 px-4 text-[14px]";
   const styles: Record<string, string> = {
     primary: "bg-primary text-primary-fg hover:bg-primary-hover active:brightness-95",
     secondary: "border border-border-strong text-fg hover:bg-surface-2",

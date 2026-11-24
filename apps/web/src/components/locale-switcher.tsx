@@ -27,7 +27,9 @@ export function LocaleSwitcher() {
         onClick={() => setLocale("ar")}
         disabled={pending}
         aria-pressed={locale === "ar"}
-        className={`px-2.5 h-8 text-[13px] rounded-s-sm transition-colors duration-200 ease-out ${
+        aria-label="ع"
+        title="العربية"
+        className={`h-11 px-3 text-[13px] rounded-s-sm transition-colors duration-200 ease-out ${
           locale === "ar" ? "bg-primary text-primary-fg" : "text-fg-muted hover:text-fg"
         }`}
       >
@@ -38,7 +40,9 @@ export function LocaleSwitcher() {
         onClick={() => setLocale("en")}
         disabled={pending}
         aria-pressed={locale === "en"}
-        className={`px-2.5 h-8 text-[13px] rounded-e-sm transition-colors duration-200 ease-out ${
+        aria-label="EN"
+        title="English"
+        className={`h-11 px-3 text-[13px] rounded-e-sm transition-colors duration-200 ease-out ${
           locale === "en" ? "bg-primary text-primary-fg" : "text-fg-muted hover:text-fg"
         }`}
       >

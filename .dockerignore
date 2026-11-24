@@ -11,3 +11,6 @@ docs
 infra/*.env
 **/test-results
 **/playwright-report
+apps/web/e2e/screenshots
+**/*.apk
+**/.mimosa

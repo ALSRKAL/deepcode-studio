@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { requireAdmin } from "@/lib/guards";
 import { LocaleLink } from "@/components/locale-link";
@@ -5,6 +6,8 @@ import { BrandMark } from "@/components/brand";
 import { SignOutButton } from "@/components/dashboard-shell";
 
 /** Admin layout (docs/plan/03 §6): separate navigation, mandatory 2FA via guard. */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
+
 export default async function AdminLayout({
   children,
   params,
