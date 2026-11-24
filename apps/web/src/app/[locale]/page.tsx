@@ -1,6 +1,9 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { and, eq, inArray } from "drizzle-orm";
-import { catalogModels, plans, TRIAL_PLAN } from "@deepcode/db";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { catalogModels, plans, releases, TRIAL_PLAN } from "@deepcode/db";
+import { absoluteUrl, pageMetadata } from "@/lib/seo";
+import { siteUrl } from "@/lib/siteUrl";
+import { JsonLd } from "@/components/json-ld";
 import { db } from "@/lib/db";
 import { SignedInSwitch } from "@/components/signed-in";
 import { env } from "@/lib/env";
@@ -9,26 +12,20 @@ import { SiteFooter } from "@/components/site-footer";
 import { ProductWindow } from "@/components/home/product-window";
 import { ButtonLink } from "@/components/ui/button";
 import { LtrIsland } from "@/components/ltr-island";
-import { PricingCards } from "@/components/pricing-cards";
-import { TrialOffer } from "@/components/trial-offer";
+import { PlanTable } from "@/components/plan-table";
 
-/** Real model behind a branded one: "… (DeepSeek V4.1 Flash)." → "DeepSeek V4.1 Flash". */
-function realModel(description: string): string {
-  return /\(([^)]+)\)\.?$/.exec(description)?.[1] ?? "";
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale: raw } = await params;
+  const locale = raw === "en" ? "en" : "ar";
+  const t = await getTranslations({ locale, namespace: "meta.home" });
+  return pageMetadata({ locale, path: "/", title: t("title"), description: t("description") });
 }
 
 function contextLabel(tokens: number): string {
-  return tokens >= 1000 ? `${Math.round(tokens / 1000)}K` : String(tokens);
-}
-
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  // The split line (brand signature): a short cyan rule before every section label.
-  return (
-    <p className="flex items-center gap-3 text-[13px] font-medium tracking-wide text-primary">
-      <span aria-hidden="true" className="h-px w-8 bg-primary" />
-      {children}
-    </p>
-  );
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(tokens % 1_000_000 === 0 ? 0 : 1)}M`;
+  return `${Math.round(tokens / 1024)}K`;
 }
 
 export default async function LandingPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -36,31 +33,60 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
   setRequestLocale(locale);
   const t = await getTranslations("home");
   const f = await getTranslations("faq");
-  const l = await getTranslations("landing");
-  const publicPlans = await db().db.select().from(plans).where(and(eq(plans.isPublic, true))).orderBy(plans.sortOrder);
+  const p = await getTranslations("pricing");
+  const d = await getTranslations("download");
+  const nav = await getTranslations("nav");
+  const publicPlans = await db().db.select().from(plans).where(eq(plans.isPublic, true)).orderBy(plans.sortOrder);
 
-  const planName = (p: (typeof publicPlans)[number]) => (locale === "ar" ? p.nameAr : p.nameEn);
-  const publicModelIds = [...new Set(publicPlans.flatMap((p) => p.allowedModels))];
+  const planName = (plan: (typeof publicPlans)[number]) => (locale === "ar" ? plan.nameAr : plan.nameEn);
+  const publicModelIds = [...new Set(publicPlans.flatMap((plan) => plan.allowedModels))];
   const catalogRows = publicModelIds.length
-    ? await db()
-        .db.select()
-        .from(catalogModels)
-        .where(inArray(catalogModels.id, publicModelIds))
+    ? await db().db.select().from(catalogModels).where(inArray(catalogModels.id, publicModelIds))
     : [];
   const models = catalogRows
-    .filter((m) => m.status === "active")
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.displayName.localeCompare(b.displayName))
-    .map((m) => {
-      const first = publicPlans.find((p) => p.allowedModels.includes(m.id));
+    .filter((model) => model.status === "active")
+    .map((model) => {
+      const first = publicPlans.find((plan) => plan.allowedModels.includes(model.id));
       return {
-        id: m.id,
-        name: m.displayName,
-        runs: realModel(m.description ?? "") || m.id,
-        context: m.contextWindow ? contextLabel(m.contextWindow) : "",
+        id: model.id,
+        name: model.displayName,
+        context: model.contextWindow ? contextLabel(model.contextWindow) : "",
         plan: first ? planName(first) : "",
-        trial: (TRIAL_PLAN.allowedModels as readonly string[]).includes(m.id),
+        planOrder: first ? publicPlans.indexOf(first) : publicPlans.length,
+        trial: (TRIAL_PLAN.allowedModels as readonly string[]).includes(model.id),
       };
-    });
+    })
+    .sort((a, b) => a.planOrder - b.planOrder || a.name.localeCompare(b.name));
+  // Show the ladder, not eight Starter models: two examples from each tier first.
+  const featuredModels = (() => {
+    const picked = [0, 1, 2, 3].flatMap((order) => models.filter((model) => model.planOrder === order).slice(0, 2));
+    const seen = new Set(picked.map((model) => model.id));
+    for (const model of models) {
+      if (picked.length >= 8) break;
+      if (!seen.has(model.id)) {
+        picked.push(model);
+        seen.add(model.id);
+      }
+    }
+    return picked.slice(0, 8);
+  })();
+
+  const releaseRows = await db()
+    .db.select()
+    .from(releases)
+    .where(and(eq(releases.channel, "stable"), isNotNull(releases.publishedAt)))
+    .orderBy(desc(sql`${releases.publishedAt}`));
+  const latestVersion = releaseRows[0]?.version;
+  const latestRows = latestVersion ? releaseRows.filter((row) => row.version === latestVersion) : [];
+  const asset = (platform: string, arch: string, fileKind: string) =>
+    latestRows.find((row) => row.platform === platform && row.arch === arch && row.fileKind === fileKind)?.url;
+
+  const downloads = [
+    { key: "windows", label: d("windows"), detail: "Windows 10/11", href: asset("win", "x64", "exe") },
+    { key: "mac-arm", label: `${d("macos")} · ${d("appleSilicon")}`, detail: "macOS 12+", href: asset("mac", "arm64", "dmg") },
+    { key: "mac-intel", label: `${d("macos")} · ${d("intel")}`, detail: "macOS 12+", href: asset("mac", "x64", "dmg") },
+    { key: "linux", label: d("linux"), detail: "AppImage · deb · rpm", href: asset("linux", "x64", "AppImage") },
+  ];
 
   const faqs: Array<[string, string]> = [
     [f("credit"), f("creditBody")],
@@ -69,191 +95,134 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
     [f("data"), f("dataBody")],
     [f("refund"), f("refundBody")],
     [f("os"), f("osBody")],
-    [f("offline"), f("offlineBody")],
-    [f("zcode"), f("zcodeBody")],
   ];
+
+  const site = siteUrl();
+  const softwareJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "DeepCode Studio",
+    applicationCategory: "DeveloperApplication",
+    operatingSystem: "Windows, macOS, Linux",
+    description: t("heroSub"),
+    url: absoluteUrl(`/${locale}`),
+    ...(latestVersion ? { softwareVersion: latestVersion } : {}),
+    offers: publicPlans.map((plan) => ({
+      "@type": "Offer",
+      name: locale === "ar" ? plan.nameAr : plan.nameEn,
+      price: (plan.priceCents / 100).toFixed(2),
+      priceCurrency: plan.currency,
+      url: `${site}/${locale}/pricing`,
+      availability: "https://schema.org/InStock",
+    })),
+  };
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map(([question, answer]) => ({
+      "@type": "Question",
+      name: question,
+      acceptedAnswer: { "@type": "Answer", text: answer },
+    })),
+  };
 
   return (
     <>
+      <JsonLd data={[softwareJsonLd, faqJsonLd]} />
       <SiteHeader />
-      <main>
+      <main id="main">
         {/* 1 — Hero */}
-        <section className="relative overflow-hidden">
-          {/* A quiet grid that fades out: depth behind the window, not decoration on text. */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 h-[560px] bg-[linear-gradient(to_right,var(--color-border)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-border)_1px,transparent_1px)] bg-[size:48px_48px] opacity-50 [mask-image:linear-gradient(to_bottom,black,transparent)]"
-          />
-          <div className="relative mx-auto max-w-6xl px-4 pt-16 pb-10 md:pt-24">
-            <Eyebrow>{t("eyebrow")}</Eyebrow>
-            <h1 className="mt-5 max-w-4xl text-display font-semibold tracking-[-0.02em] [html[lang=ar]_&]:tracking-normal">
-              {t("heroTitle")}
-            </h1>
-            <p className="mt-5 max-w-2xl text-[17px] leading-8 text-fg-muted">{t("heroSub")}</p>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
+        <section className="mx-auto max-w-6xl px-4 pt-12 pb-16 md:pt-20 md:pb-20">
+          <h1 className="max-w-4xl text-display font-semibold tracking-[-0.03em] text-balance [html[lang=ar]_&]:tracking-normal">
+            {t("heroTitle")}
+          </h1>
+          <p className="mt-5 max-w-2xl text-[17px] leading-8 text-fg-muted md:text-[18px]">{t("heroSub")}</p>
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <ButtonLink href={`/${locale}/download`} size="lg">
+              {t("ctaDownload")}
+            </ButtonLink>
+            {env.TRIAL_ENABLED ? (
               <SignedInSwitch
-                signedIn={<ButtonLink href={`/${locale}/dashboard`} size="lg">{t("ctaTrial")}</ButtonLink>}
-                signedOut={<ButtonLink href={`/${locale}/sign-up`} size="lg">{t("ctaTrial")}</ButtonLink>}
+                signedIn={
+                  <ButtonLink href={`/${locale}/dashboard`} size="lg" variant="secondary">
+                    {nav("dashboard")}
+                  </ButtonLink>
+                }
+                signedOut={
+                  <ButtonLink href={`/${locale}/sign-up`} size="lg" variant="secondary">
+                    {t("ctaTrial")}
+                  </ButtonLink>
+                }
               />
-              <ButtonLink href={`/${locale}/download`} variant="secondary" size="lg">
-                {t("ctaDownload")}
+            ) : (
+              <ButtonLink href={`/${locale}/pricing`} size="lg" variant="secondary">
+                {p("allPlans")}
               </ButtonLink>
-            </div>
-            <p className="mt-4 text-[13px] text-fg-subtle">{t("heroNote")}</p>
+            )}
           </div>
-          <div className="relative mx-auto max-w-6xl px-4 pb-16">
+          <p className="mt-4 text-[13px] text-fg-subtle">{t("heroNote")}</p>
+          <div className="mt-12 md:mt-16">
             <ProductWindow />
           </div>
         </section>
 
-        {/* 2 — Model providers */}
+        {/* 2 — Product proof */}
         <section className="border-y border-border bg-surface">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-10 gap-y-3 px-4 py-6">
-            <p className="text-[13px] text-fg-subtle">{t("stripLabel")}</p>
-            <ul dir="ltr" className="flex flex-wrap items-center gap-x-8 gap-y-2 font-mono text-[14px] font-medium text-fg-muted">
-              {["DeepSeek", "GLM", "Qwen", "Kimi", "gpt-oss"].map((n) => (
-                <li key={n}>{n}</li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        {/* 3 — Features: a bento with one real visual per feature */}
-        <section className="mx-auto max-w-6xl px-4 py-20 md:py-28">
-          <Eyebrow>{t("featuresEyebrow")}</Eyebrow>
-          <h2 className="mt-4 max-w-3xl text-display-sm font-semibold tracking-[-0.01em]">{t("featuresTitle")}</h2>
-          <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-12">
-            <article className="min-w-0 rounded-[14px] border border-border bg-surface p-6 md:col-span-7">
-              <h3 className="text-[17px] font-semibold">{t("f1Title")}</h3>
-              <p className="mt-2 max-w-lg text-[15px] leading-7 text-fg-muted">{t("f1Body")}</p>
-              <LtrIsland as="pre" tabIndex={0} className="mt-6 block overflow-x-auto rounded-[10px] bg-ink p-4 text-[12.5px] leading-6 text-ink-fg">
-                <span className="text-ink-muted">{"$ deepcode \"fix the checkout total\"\n"}</span>
-                <span className="text-accent-glow">{"plan  "}</span>
-                {"read cart.ts → patch totals → run tests\n"}
-                <span className="text-[#6ee7b7]">{"edit  "}</span>
-                {"src/cart.ts  +14 −3\n"}
-                <span className="text-[#6ee7b7]">{"test  "}</span>
-                {"38 passed in 2.1s"}
-              </LtrIsland>
-            </article>
-
-            <article className="min-w-0 rounded-[14px] border border-border bg-surface p-6 md:col-span-5">
-              <h3 className="text-[17px] font-semibold">{t("f2Title")}</h3>
-              <p className="mt-2 text-[15px] leading-7 text-fg-muted">{t("f2Body")}</p>
-              <div className="mt-6 rounded-[10px] border border-border bg-bg p-4">
-                <p dir="rtl" lang="ar" className="text-[15px] leading-7">
-                  أنشئ دالة <LtrIsland className="rounded bg-surface-2 px-1.5 py-0.5 text-[12.5px] text-primary">formatPrice()</LtrIsland> تعرض السعر بالروبية.
-                </p>
-                <div className="mt-3 border-s-2 border-primary ps-3" dir="ltr">
-                  <LtrIsland className="block text-[12.5px] text-fg-muted">{"formatPrice(29900) // \"₹299\""}</LtrIsland>
-                </div>
-              </div>
-            </article>
-
-            <article className="min-w-0 rounded-[14px] border border-border bg-surface p-6 md:col-span-4">
-              <h3 className="text-[17px] font-semibold">{t("f3Title")}</h3>
-              <p className="mt-2 text-[15px] leading-7 text-fg-muted">{t("f3Body")}</p>
-              <ul dir="ltr" className="mt-6 grid gap-1.5 rounded-[10px] border border-border bg-bg p-2 text-[13px]">
-                {models.slice(0, 3).map((m, i) => (
-                  <li key={m.id} className={`flex items-center justify-between rounded-md px-2.5 py-2 ${i === 0 ? "bg-surface shadow-[0_1px_0_var(--color-border)]" : ""}`}>
-                    <span className="font-medium">{m.name}</span>
-                    <span className="text-fg-subtle">{m.runs}</span>
+          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-20 md:grid-cols-2 md:py-28">
+            <div>
+              <h2 className="text-display-sm font-semibold tracking-[-0.02em] [html[lang=ar]_&]:tracking-normal">{t("proofTitle")}</h2>
+              <p className="mt-4 max-w-lg text-[16px] leading-7 text-fg-muted">{t("proofBody")}</p>
+              <ul className="mt-8 grid gap-6">
+                {(["1", "2", "3"] as const).map((n) => (
+                  <li key={n} className="grid gap-1.5">
+                    <h3 className="text-[17px] font-semibold">{t(`proof${n}Title`)}</h3>
+                    <p className="max-w-md text-[15px] leading-7 text-fg-muted">{t(`proof${n}Body`)}</p>
                   </li>
                 ))}
               </ul>
-            </article>
-
-            <article className="min-w-0 rounded-[14px] border border-border bg-surface p-6 md:col-span-4">
-              <h3 className="text-[17px] font-semibold">{t("f4Title")}</h3>
-              <p className="mt-2 text-[15px] leading-7 text-fg-muted">{t("f4Body")}</p>
-              <div className="mx-auto mt-6 w-40 rounded-[22px] border-[5px] border-ink bg-ink p-1">
-                <div className="rounded-[16px] bg-ink-2 px-3 py-4 text-ink-fg">
-                  <p className="text-[10px] text-ink-muted">DeepCode Studio</p>
-                  <p className="mt-2 flex items-center gap-1.5 text-[11px]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#34d399]" />
-                    {t("phoneConnected")}
-                  </p>
-                  <div className="mt-3 grid gap-1.5">
-                    <span className="h-2 rounded-full bg-ink-3" />
-                    <span className="h-2 w-3/4 rounded-full bg-ink-3" />
-                    <span className="h-2 w-1/2 rounded-full bg-accent-glow/70" />
-                  </div>
-                </div>
-              </div>
-            </article>
-
-            <article className="min-w-0 rounded-[14px] border border-border bg-surface p-6 md:col-span-4">
-              <h3 className="text-[17px] font-semibold">{t("f5Title")}</h3>
-              <p className="mt-2 text-[15px] leading-7 text-fg-muted">{t("f5Body")}</p>
-              <ul dir="ltr" className="mt-6 flex flex-wrap gap-2 font-mono text-[12px]">
-                {["impeccable", "frontend-design", "react-best-practices", "webapp-testing", "mcp-builder", "xlsx", "pdf"].map((s) => (
-                  <li key={s} className="rounded-md border border-border bg-bg px-2 py-1 text-fg-muted">
-                    {s}
-                  </li>
-                ))}
-              </ul>
-            </article>
-
-            <article className="flex min-w-0 flex-col gap-6 rounded-[14px] border border-border bg-surface p-6 md:col-span-12 md:flex-row md:items-center">
-              <div className="md:w-1/2">
-                <h3 className="text-[17px] font-semibold">{t("f6Title")}</h3>
-                <p className="mt-2 text-[15px] leading-7 text-fg-muted">{t("f6Body")}</p>
-              </div>
-              <div className="md:w-1/2">
-                <div className="flex items-baseline justify-between text-[13px]">
-                  <span className="text-fg-muted">{t("usageLabel")}</span>
-                  <span dir="ltr" className="tabular font-mono">2,140,500 / 7,000,000</span>
-                </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-2">
-                  <div className="h-full w-[31%] rounded-full bg-primary" />
-                </div>
-              </div>
-            </article>
+            </div>
+            <LtrIsland as="pre" tabIndex={0} className="overflow-x-auto rounded-lg bg-ink p-5 text-[13px] leading-7 text-ink-fg">
+              <span className="block text-ink-muted">{'$ deepcode "add email validation"'}</span>
+              <span className="mt-3 block text-accent-glow">plan</span>
+              <span className="block text-ink-fg/90">{"read src/forms/signup.tsx"}</span>
+              <span className="block text-ink-fg/90">{"write the diff, then run the tests"}</span>
+              <span className="mt-3 block text-accent-glow">edit</span>
+              <span className="block text-ink-fg/90">{"src/forms/signup.tsx  +9 −2"}</span>
+              <span className="mt-3 block text-accent-glow">test</span>
+              <span className="block text-code-add">{"✓ tests passed"}</span>
+            </LtrIsland>
           </div>
         </section>
 
-        {/* 4 — How it works */}
-        <section className="border-y border-border bg-surface">
-          <div className="mx-auto max-w-6xl px-4 py-20">
-            <Eyebrow>{t("stepsEyebrow")}</Eyebrow>
-            <h2 className="mt-4 max-w-3xl text-display-sm font-semibold tracking-[-0.01em]">{t("stepsTitle")}</h2>
-            <ol className="mt-12 grid grid-cols-1 gap-10 md:grid-cols-3">
-              {(["s1", "s2", "s3"] as const).map((k, i) => (
-                <li key={k} className="border-t border-border pt-6">
-                  <span dir="ltr" className="font-mono text-[13px] text-primary">0{i + 1}</span>
-                  <h3 className="mt-3 text-[19px] font-semibold">{t(`${k}Title`)}</h3>
-                  <p className="mt-2 text-[15px] leading-7 text-fg-muted">{t(`${k}Body`)}</p>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
-
-        {/* 5 — Models (real data from the catalog and the plans) */}
+        {/* 3 — Models */}
         <section className="mx-auto max-w-6xl px-4 py-20 md:py-28">
-          <Eyebrow>{t("modelsEyebrow")}</Eyebrow>
-          <h2 className="mt-4 text-display-sm font-semibold tracking-[-0.01em]">{t("modelsTitle")}</h2>
-          <p className="mt-3 max-w-2xl text-[16px] leading-7 text-fg-muted">{t("modelsSub")}</p>
-          <div className="mt-10 max-h-[520px] overflow-auto rounded-[14px] border border-border bg-surface" role="region" tabIndex={0} aria-label={t("modelsTitle")}>
-            <table className="w-full min-w-[560px] text-[14px]">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-display-sm font-semibold tracking-[-0.02em] [html[lang=ar]_&]:tracking-normal">{t("modelsTitle")}</h2>
+              <p className="mt-3 max-w-2xl text-[16px] leading-7 text-fg-muted">{t("modelsSub")}</p>
+            </div>
+            <a href={`/${locale}/docs#models`} className="inline-flex min-h-11 items-center text-[14px] font-medium text-primary hover:underline underline-offset-2">
+              {t("modelsAll")}
+            </a>
+          </div>
+          <div className="mt-8 max-h-[520px] overflow-auto rounded-lg border border-border bg-surface" role="region" tabIndex={0} aria-label={t("modelsTitle")}>
+            <table className="w-full min-w-0 text-[14px] sm:min-w-[560px]">
               <thead className="sticky top-0 z-10 bg-surface">
-                <tr className="border-b border-border text-start text-[12.5px] text-fg-subtle">
+                <tr className="border-b border-border text-start text-[13px] text-fg-subtle">
                   <th scope="col" className="px-5 py-3 text-start font-medium">{t("colModel")}</th>
-                  <th scope="col" className="px-5 py-3 text-start font-medium">{t("colRuns")}</th>
-                  <th scope="col" className="px-5 py-3 text-end font-medium">{t("colContext")}</th>
+                  <th scope="col" className="hidden px-5 py-3 text-end font-medium sm:table-cell">{t("colContext")}</th>
                   <th scope="col" className="px-5 py-3 text-start font-medium">{t("colPlan")}</th>
                 </tr>
               </thead>
               <tbody>
-                {models.map((m) => (
-                  <tr key={m.id} className="border-b border-border last:border-0">
-                    <td className="px-5 py-3.5 font-medium"><bdi dir="ltr">{m.name}</bdi></td>
-                    <td className="px-5 py-3.5 text-fg-muted"><bdi dir="ltr">{m.runs}</bdi></td>
-                    <td className="px-5 py-3.5 text-end tabular font-mono text-[13px]"><bdi dir="ltr">{m.context}</bdi></td>
+                {featuredModels.map((model) => (
+                  <tr key={model.id} className="border-b border-border last:border-0">
+                    <td className="px-5 py-3.5 font-medium"><bdi dir="ltr">{model.name}</bdi></td>
+                    <td className="hidden px-5 py-3.5 text-end tabular sm:table-cell"><bdi dir="ltr">{model.context}</bdi></td>
                     <td className="px-5 py-3.5">
-                      <span>{m.plan}</span>
-                      {m.trial ? (
-                        <span className="ms-2 rounded-full bg-primary/10 px-2 py-0.5 text-[12px] text-primary">{t("trialIncluded")}</span>
+                      <span>{model.plan}</span>
+                      {model.trial ? (
+                        <span className="ms-2 rounded-full bg-primary/10 px-2 py-0.5 text-[12px] text-primary-hover">{t("trialIncluded")}</span>
                       ) : null}
                     </td>
                   </tr>
@@ -263,49 +232,73 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
           </div>
         </section>
 
-        {/* 6 — Pricing */}
+        {/* 4 — Pricing */}
         <section className="border-y border-border bg-surface">
-          <div className="mx-auto max-w-6xl px-4 py-20">
-            <Eyebrow>{t("pricingEyebrow")}</Eyebrow>
-            <h2 className="mt-4 text-display-sm font-semibold tracking-[-0.01em]">{t("pricingTitle")}</h2>
-            {env.TRIAL_ENABLED ? <TrialOffer /> : null}
+          <div className="mx-auto max-w-6xl px-4 py-20 md:py-28">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h2 className="text-display-sm font-semibold tracking-[-0.02em] [html[lang=ar]_&]:tracking-normal">{t("pricingTitle")}</h2>
+                <p className="mt-3 max-w-2xl text-[16px] leading-7 text-fg-muted">{t("pricingSub")}</p>
+              </div>
+              <a href={`/${locale}/pricing`} className="inline-flex min-h-11 items-center text-[14px] font-medium text-primary hover:underline underline-offset-2">
+                {p("allPlans")}
+              </a>
+            </div>
             <div className="mt-8">
-              <PricingCards plans={publicPlans} locale={locale} />
+              <PlanTable rows={publicPlans} locale={locale} />
             </div>
           </div>
         </section>
 
-        {/* 7 — FAQ */}
-        <section className="mx-auto max-w-3xl px-4 py-20">
-          <Eyebrow>{t("faqEyebrow")}</Eyebrow>
-          <h2 className="mt-4 text-display-sm font-semibold tracking-[-0.01em]">{l("faqTitle")}</h2>
-          <div className="mt-8 divide-y divide-border border-y border-border">
-            {faqs.map(([q, a]) => (
-              <details key={q} className="group py-5">
+        {/* 5 — Download */}
+        <section className="bg-ink text-ink-fg">
+          <div className="mx-auto max-w-6xl px-4 py-20 md:py-28">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h2 className="text-display-sm font-semibold tracking-[-0.02em] [html[lang=ar]_&]:tracking-normal">{t("downloadTitle")}</h2>
+                <p className="mt-3 max-w-2xl text-[16px] leading-7 text-ink-muted">{t("downloadSub")}</p>
+                {latestVersion ? <p className="mt-2 text-[13px] text-ink-muted tabular">v{latestVersion}</p> : null}
+              </div>
+              <a href={`/${locale}/download`} className="inline-flex min-h-11 items-center text-[14px] font-medium text-accent-glow hover:underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow">
+                {d("allBuilds")}
+              </a>
+            </div>
+            <div className="mt-8 grid gap-3 sm:grid-cols-2">
+              {downloads.map((option) => (
+                <a
+                  key={option.key}
+                  href={option.href ?? `/${locale}/download`}
+                  className="group flex min-h-16 items-center justify-between gap-4 rounded-lg border border-ink-line bg-ink-2 px-5 py-4 hover:border-accent-glow/60 hover:bg-ink-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-glow"
+                >
+                  <span>
+                    <span className="block text-[15px] font-medium text-ink-fg">{option.label}</span>
+                    <span className="mt-0.5 block text-[13px] text-ink-muted">{option.detail}</span>
+                  </span>
+                  <span aria-hidden="true" className="text-ink-muted group-hover:text-accent-glow">↓</span>
+                </a>
+              ))}
+            </div>
+            <div className="mt-6 grid gap-2 text-[12px] leading-6 text-ink-muted md:grid-cols-2">
+              <p>{d("requirementsBody")}</p>
+              <p>{d("unsignedBody")}</p>
+            </div>
+          </div>
+        </section>
+
+        {/* 6 — FAQ */}
+        <section className="mx-auto max-w-3xl px-4 py-20 md:py-28">
+          <h2 className="text-display-sm font-semibold tracking-[-0.02em] [html[lang=ar]_&]:tracking-normal">{t("faqTitle")}</h2>
+          <p className="mt-3 text-[16px] leading-7 text-fg-muted">{t("faqSub")}</p>
+          <div className="mt-8 border-y border-border">
+            {faqs.map(([question, answer]) => (
+              <details key={question} className="group border-b border-border py-5 last:border-0">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[16px] font-medium [&::-webkit-details-marker]:hidden">
-                  {q}
+                  {question}
                   <span aria-hidden="true" className="text-[20px] leading-none text-fg-subtle transition-transform duration-200 group-open:rotate-45">+</span>
                 </summary>
-                <p className="mt-3 text-[15px] leading-7 text-fg-muted">{a}</p>
+                <p className="mt-3 text-[15px] leading-7 text-fg-muted">{answer}</p>
               </details>
             ))}
-          </div>
-        </section>
-
-        {/* 8 — Closing band */}
-        <section className="px-4 pb-20">
-          <div className="mx-auto max-w-6xl overflow-hidden rounded-[20px] bg-ink px-6 py-14 text-ink-fg md:px-14 md:py-20">
-            <h2 className="max-w-2xl text-display-sm font-semibold tracking-[-0.01em]">{t("finalTitle")}</h2>
-            <p className="mt-4 max-w-xl text-[16px] leading-7 text-ink-muted">{t("finalSub")}</p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <SignedInSwitch
-                signedIn={<ButtonLink href={`/${locale}/dashboard`} size="lg" className="!bg-accent-glow !text-ink hover:!bg-[#67e8f9]">{t("ctaTrial")}</ButtonLink>}
-                signedOut={<ButtonLink href={`/${locale}/sign-up`} size="lg" className="!bg-accent-glow !text-ink hover:!bg-[#67e8f9]">{t("ctaTrial")}</ButtonLink>}
-              />
-              <ButtonLink href={`/${locale}/download`} size="lg" variant="secondary" className="!border-ink-line !bg-transparent !text-ink-fg hover:!bg-ink-3">
-                {t("ctaDownload")}
-              </ButtonLink>
-            </div>
           </div>
         </section>
       </main>
@@ -314,11 +307,5 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
   );
 }
 
-// Public, identical for every visitor: rendered on first request, then served from
-// cache and refreshed at most every 60 s (2026-11-21: rendering per visit gave 11 req/s
-// at 10 s latency under load). The empty list enables that runtime cache without
-// prerendering at build time (the image build has no database).
-export const revalidate = 60;
-export function generateStaticParams() {
-  return [];
-}
+// Rendered per request so the CSP nonce on Next's scripts and our JSON-LD always
+// match. Public pages keep no server session read, so this stays cheap.

@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "title": "DeepCode Studio — the AI coding IDE in Arabic and English",
-    "description": "An AI coding agent that reads your repo, edits files as reviewable diffs and runs your tests. Native Arabic and English, top open models, plans in rupees. Free for 24 hours."
+    "title": "DeepCode Studio — the AI coding agent that speaks Arabic",
+    "description": "Reads your repo, writes reviewable diffs and runs your tests. Native Arabic and English, OpenCode Go models, on Windows, macOS and Linux."
   },
   "nav": {
     "product": "Product",
@@ -14,7 +14,12 @@
     "signIn": "Sign in",
     "signUp": "Sign up",
     "signOut": "Sign out",
-    "language": "Language"
+    "language": "Language",
+    "menu": "Menu",
+    "closeMenu": "Close menu",
+    "skipToContent": "Skip to content",
+    "support": "Support",
+    "primary": "Primary"
   },
   "footer": {
     "legal": "Legal",
@@ -22,7 +27,15 @@
     "privacy": "Privacy",
     "acceptableUse": "Acceptable use",
     "licenses": "Open-source licenses",
-    "basedOn": "Based on ZCodium (Apache-2.0)."
+    "basedOn": "Based on ZCodium (Apache-2.0).",
+    "resources": "Resources",
+    "support": "Support",
+    "security": "Security",
+    "contact": "Contact",
+    "status": "Status",
+    "docs": "Docs",
+    "github": "GitHub",
+    "tagline": "An AI coding agent for Arabic and English, on Windows, macOS and Linux."
   },
   "landing": {
     "heroTitle": "An IDE fluent in Arabic and in code.",
@@ -53,13 +66,13 @@
     "data": "How is my data handled?",
     "dataBody": "We never store request or response content; only token counts, for metering. App credentials are encrypted on your device.",
     "refund": "What is the refund policy?",
-    "refundBody": "Cancel any time and access continues until the end of the paid period. Full terms live on the terms page.",
+    "refundBody": "Cancel any time and access continues until the end of the paid period. Refund requests are reviewed case by case; the terms page has the full policy.",
     "os": "Which operating systems are supported?",
-    "osBody": "Windows 10/11, macOS 12+, and Linux (AppImage and deb) on x64 and arm64.",
+    "osBody": "Windows 10/11, macOS 12+ (Intel or Apple Silicon), and Linux AppImage/deb/rpm on x64 and arm64.",
     "offline": "Does the app work offline?",
     "offlineBody": "Editing and reviewing always work locally; cloud models need a connection, and you can wire a local provider.",
     "zcode": "What is the relation to ZCode?",
-    "zcodeBody": "The app is built on ZCodium, an open-source fork under Apache-2.0, with a full identity and Arabic-interface redesign."
+    "zcodeBody": "The app is built on ZCodium, an Apache-2.0 open-source fork, with a full DeepCode identity and Arabic interface."
   },
   "pricing": {
     "title": "Simple plans, transparent metering",
@@ -81,7 +94,27 @@
     "perModelPrices": "Model price table",
     "startFree": "Start free",
     "trialOfferTitle": "Limited-time offer:",
-    "trialOfferBody": "every new account gets 24 hours free with 1.5M credits on <model>Hy4 Flash Free and DeepSeek Flash</model>. No card needed; the Free plan continues after the trial."
+    "trialOfferBody": "every new account gets 24 hours free with 1.5M credits on <model>Hy4 Flash Free and DeepSeek Flash</model>. No card needed; the Free plan continues after the trial.",
+    "compareTitle": "Compare plans",
+    "compareSub": "Every plan includes the desktop app, Arabic and English, and the same gateway.",
+    "feature": "Feature",
+    "allPlans": "See all plans",
+    "modelsMore": "+{count} more",
+    "devicesCount": "{count, plural, one {# device} other {# devices}}",
+    "modelsCount": "{count, plural, one {# model} other {# models}}",
+    "rpmCount": "{count, plural, one {# request/min} other {# requests/min}}",
+    "concurrencyCount": "{count, plural, one {# concurrent request} other {# concurrent requests}}",
+    "modelPricesTitle": "Model credit prices",
+    "modelPricesSub": "Credits are charged per million tokens at each model's listed price.",
+    "model": "Model",
+    "input": "Input",
+    "output": "Output",
+    "cached": "Cached input",
+    "perMillion": "per 1M tokens",
+    "taxNote": "Prices are in Indian rupees. Taxes may apply at checkout.",
+    "cancelNote": "Cancel anytime. Access continues until the end of the paid period.",
+    "empty": "No public plans are available right now.",
+    "plan": "Plan"
   },
   "download": {
     "title": "Download DeepCode Studio",
@@ -98,7 +131,30 @@
     "installWin": "Windows — paste in PowerShell",
     "installUnix": "macOS and Linux — paste in Terminal",
     "copy": "Copy",
-    "installNote": "Prefer a normal download? Use the buttons below; Windows may show a SmartScreen notice (More info → Run anyway) because the installer is not code-signed yet."
+    "installNote": "Prefer a normal download? Use the buttons below; Windows may show a SmartScreen notice (More info → Run anyway) because the installer is not code-signed yet.",
+    "recommended": "Recommended for your device",
+    "chooseBuild": "Choose a build",
+    "windows": "Windows",
+    "macos": "macOS",
+    "linux": "Linux",
+    "intel": "Intel",
+    "appleSilicon": "Apple Silicon",
+    "arm64": "ARM64",
+    "x64": "x64",
+    "latest": "Latest",
+    "channelStable": "Stable",
+    "checksum": "SHA-256 checksum",
+    "verifyChecksum": "Verify the download",
+    "verifyBody": "Compare this SHA-256 with the file you downloaded. On macOS/Linux: shasum -a 256 <file>.",
+    "requirementsTitle": "System requirements",
+    "requirementsBody": "Windows 10/11, macOS 12+ (Intel or Apple Silicon), or a modern 64-bit Linux with AppImage/deb/rpm. 4 GB RAM minimum, 8 GB recommended.",
+    "unsignedTitle": "Unsigned installer",
+    "unsignedBody": "The installer is not code-signed yet. Windows may show SmartScreen (More info → Run anyway); macOS may ask you to open it from System Settings → Privacy & Security.",
+    "releaseNotes": "Release notes",
+    "mobileNote": "DeepCode Studio is a desktop app. Open this page on your computer to download it.",
+    "copyChecksum": "Copy checksum",
+    "allBuilds": "All builds",
+    "os": "OS"
   },
   "auth": {
     "signInTitle": "Sign in",
@@ -129,7 +185,10 @@
       "weak_password": "Password too short — at least 10 characters.",
       "oauth": "Google sign-in failed. Please try again.",
       "invalid_code": "The code is wrong or has expired.",
-      "expired_challenge": "Verification timed out. Sign in again."
+      "expired_challenge": "Verification timed out. Sign in again.",
+      "invalid_token": "This reset link is invalid or expired.",
+      "password_mismatch": "The passwords do not match.",
+      "consent_required": "Please accept the Terms and Privacy Policy."
     },
     "google": "Continue with Google",
     "or": "or",
@@ -139,7 +198,29 @@
     "twoFactorTrust": "Trust this device for 30 days",
     "twoFactorSubmit": "Verify and sign in",
     "twoFactorBack": "Back to sign in",
-    "trialNote": "Includes a free 24-hour trial — limited-time offer."
+    "trialNote": "Includes a free 24-hour trial — limited-time offer.",
+    "resetTitle": "Choose a new password",
+    "resetBody": "Enter a new password for your account.",
+    "newPassword": "New password",
+    "resetSubmit": "Set new password",
+    "resetSuccess": "Password updated. Sign in with your new password.",
+    "consent": "I agree to the Terms of Service and Privacy Policy.",
+    "consentRequired": "Please accept the Terms and Privacy Policy.",
+    "passwordHint": "At least 10 characters.",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "backToSignIn": "Back to sign in",
+    "verifyResendSent": "Verification email sent. Check your inbox.",
+    "verifyHelp": "Didn't get the email? Enter your address and resend it.",
+    "resendEmail": "Email",
+    "resendSubmit": "Resend verification email",
+    "signInInstead": "Sign in instead",
+    "resetInvalid": "This reset link is invalid or expired. Request a new one.",
+    "resetMismatch": "The passwords do not match.",
+    "consentPrefix": "I agree to the",
+    "terms": "Terms of Service",
+    "and": "and",
+    "privacy": "Privacy Policy"
   },
   "desktop": {
     "consentTitle": "Connect the app to your account",
@@ -403,7 +484,7 @@
     "acceptableUse": "Acceptable use policy",
     "licenses": "Open-source licenses",
     "licensesBody": "DeepCode Studio is built on ZCodium (Apache-2.0). We keep LICENSE and NOTICE.md unchanged and document our changes in a \"DeepCode Studio modifications\" section.",
-    "updated": "Last updated: 16 November 2026",
+    "updated": "Last updated: 24 November 2026",
     "docs": {
       "terms": [
         {
@@ -440,7 +521,7 @@
         },
         {
           "h": "Changes and contact",
-          "p": "We may update these terms and show the date at the top of this page; continuing to use the service means you accept the updated version. To contact us, write to the address DeepCode Studio emails come from."
+          "p": "We may update these terms and show the date at the top of this page; continuing to use the service means you accept the updated version. For questions about these terms, use the Support page."
         }
       ],
       "privacy": [
@@ -458,7 +539,7 @@
         },
         {
           "h": "Who processes it with us",
-          "p": "Render (hosting), Neon (database) and Redis Cloud (cache) in Singapore; Brevo (email); Google (sign-in, if you choose it); Firebase (admin notifications); and model providers such as OpenCode and OpenRouter (request content only, to complete it). We do not sell your data."
+          "p": "Hosting: our own server (PostgreSQL and Redis) behind a private network and an HTTPS reverse proxy. Email delivery: our configured SMTP provider. Google sign-in, if you choose it. Model providers such as OpenCode Go receive request content only to complete it; they never receive your account password or payment details. We do not sell your data."
         },
         {
           "h": "Retention and deletion",
@@ -470,7 +551,7 @@
         },
         {
           "h": "Your rights",
-          "p": "You can view your data, change your name and language, and delete your account in Settings. For any other request, write to the address our emails come from."
+          "p": "You can view your data, change your name and language, and delete your account in Settings. For any other request, use the Support page."
         }
       ],
       "acceptableUse": [
@@ -509,7 +590,15 @@
     "notFound": "Page not found.",
     "notFoundBody": "Check the link or return to the home page.",
     "forbidden": "You don't have access to this page.",
-    "rtlNote": "Numbers, keys and code are always left-to-right."
+    "rtlNote": "Numbers, keys and code are always left-to-right.",
+    "skipToContent": "Skip to content",
+    "close": "Close",
+    "errorTitle": "Something went wrong",
+    "errorBody": "Try again, or return to the home page.",
+    "notFoundTitle": "Page not found",
+    "backHome": "Back to home",
+    "copyFailed": "Could not copy",
+    "checksumCopied": "Checksum copied"
   },
   "upi": {
     "title": "Pay with UPI",
@@ -635,11 +724,11 @@
   },
   "home": {
     "eyebrow": "AI coding IDE · Windows · macOS · Linux",
-    "heroTitle": "Build software with an agent that speaks your language.",
-    "heroSub": "DeepCode Studio reads your repository, plans the change, edits files as diffs you review and runs the terminal. A native Arabic and English workspace, top open models, one simple plan.",
+    "heroTitle": "A coding agent that speaks Arabic.",
+    "heroSub": "DeepCode Studio reads your repository, plans the change, writes reviewable diffs and runs your tests — in Arabic or English.",
     "ctaTrial": "Start free — 24 hours",
     "ctaDownload": "Download the app",
-    "heroNote": "No card needed. Pay in rupees with UPI when you choose a plan.",
+    "heroNote": "Windows, macOS and Linux. No card needed for the 24-hour trial.",
     "stripLabel": "Runs the strongest open models",
     "featuresEyebrow": "The workspace",
     "featuresTitle": "Everything a coding agent needs, in one window.",
@@ -665,7 +754,7 @@
     "s3Body": "Open a project folder and describe the change you want.",
     "modelsEyebrow": "Models",
     "modelsTitle": "Real models, shown by name.",
-    "modelsSub": "Every DeepCode model tells you the model it runs and how much context it holds.",
+    "modelsSub": "Every model tells you what it runs and how much context it holds.",
     "colModel": "DeepCode model",
     "colRuns": "Runs",
     "colContext": "Context",
@@ -673,7 +762,7 @@
     "tokens": "tokens",
     "trialIncluded": "Free trial",
     "pricingEyebrow": "Pricing",
-    "pricingTitle": "Simple monthly plans in rupees.",
+    "pricingTitle": "Plans that fit how you build.",
     "faqEyebrow": "Questions",
     "finalTitle": "Your next change is one request away.",
     "finalSub": "Try every feature free for 24 hours, then pick the plan that fits.",
@@ -691,6 +780,120 @@
     "winTask3": "Arabic invoice PDF",
     "winAsk": "Ask DeepCode anything…",
     "phoneConnected": "Connected to your desktop",
-    "usageLabel": "Credits this month"
+    "usageLabel": "Credits this month",
+    "proofTitle": "One request. A reviewed change.",
+    "proofBody": "The agent reads the code, writes the diff, runs the tests and leaves every change for your approval.",
+    "proof1Title": "Reads your repo",
+    "proof1Body": "It opens the project, follows the code and plans before editing.",
+    "proof2Title": "Writes reviewable diffs",
+    "proof2Body": "Every file change arrives as a diff you can inspect, edit or reject.",
+    "proof3Title": "Runs your tests",
+    "proof3Body": "It runs the real terminal and shows the result before you apply anything.",
+    "modelsAll": "See all models",
+    "pricingSub": "Monthly credits, model choice and no automatic charge.",
+    "downloadTitle": "Get the app",
+    "downloadSub": "Windows, macOS and Linux. Sign in inside the app.",
+    "downloadNote": "The installer is not code-signed yet; your OS may ask for confirmation.",
+    "faqSub": "What people ask before downloading.",
+    "faqTitle": "Questions before you start"
+  },
+  "meta": {
+    "home": {
+      "title": "DeepCode Studio — the AI coding agent that speaks Arabic",
+      "description": "Reads your repo, writes reviewable diffs and runs your tests. Native Arabic and English, OpenCode Go models, on Windows, macOS and Linux."
+    },
+    "pricing": {
+      "title": "Plans and credits",
+      "description": "Monthly plans with clear credits, model choice and no automatic charges. Start free for 24 hours."
+    },
+    "download": {
+      "title": "Download DeepCode Studio",
+      "description": "Download the desktop app for Windows, macOS or Linux. Sign in inside the app and start with a 24-hour trial."
+    },
+    "docs": {
+      "title": "Documentation",
+      "description": "Install the app, create a key, call the gateway and understand models, credits, MCP and troubleshooting."
+    },
+    "changelog": {
+      "title": "Changelog",
+      "description": "Every public DeepCode Studio release, with versions, dates and download links."
+    },
+    "contact": {
+      "title": "Support",
+      "description": "Get help with your account, billing, desktop app or API. Open an issue or contact us directly."
+    },
+    "security": {
+      "title": "Security",
+      "description": "How DeepCode Studio protects accounts, keys and data, and how to report a vulnerability."
+    },
+    "legal": {
+      "title": "Legal",
+      "description": "Terms, privacy, acceptable use and open-source licenses for DeepCode Studio."
+    }
+  },
+  "docs": {
+    "title": "Documentation",
+    "sub": "Install the app, connect your account and call the gateway.",
+    "toc": "On this page",
+    "quickstartTitle": "Quick start",
+    "quickstartBody": "Download the app, sign in, create an API key, then call the gateway.",
+    "installTitle": "1. Install",
+    "installBody": "Download the desktop app for Windows, macOS or Linux.",
+    "keyTitle": "2. Create a key",
+    "keyBody": "Open Dashboard → API keys and create a key. Copy it once; it is stored hashed.",
+    "requestTitle": "3. Send a request",
+    "requestBody": "The gateway supports OpenAI Chat Completions, OpenAI Responses, Anthropic Messages and Google Generative AI.",
+    "authTitle": "Authentication",
+    "authBody": "Send Authorization: Bearer <key>. Keys inherit your plan's models and credits.",
+    "modelsTitle": "Models and credits",
+    "modelsBody": "Every model has a per-million-token credit price. The plan sets the models and monthly credits.",
+    "mcpTitle": "MCP and skills",
+    "mcpBody": "Skills add capabilities; MCP servers connect external tools over stdio or SSE.",
+    "billingTitle": "Billing",
+    "billingBody": "Plans are prepaid. Credits reset each period; requests stop at the limit and nothing is auto-charged.",
+    "troubleshootingTitle": "Troubleshooting",
+    "troubleshootingBody": "401: missing or invalid key. 403: model not in your plan. 429: rate limit or no credits.",
+    "securityTitle": "Security",
+    "securityBody": "Read how we protect accounts and data, or report a vulnerability.",
+    "apiTitle": "Gateway API",
+    "apiBody": "Base URL, headers and a streaming example.",
+    "modelsTableTitle": "Model credit prices",
+    "context": "Context",
+    "downloadApp": "Download the app",
+    "openKeys": "Open API keys"
+  },
+  "changelog": {
+    "title": "Changelog",
+    "sub": "Public releases of the desktop app.",
+    "latest": "Latest",
+    "noReleases": "No public releases yet.",
+    "releaseNotes": "Release notes",
+    "download": "Download",
+    "platform": "Platform"
+  },
+  "contact": {
+    "title": "Support",
+    "sub": "We are a small team. GitHub Issues is the fastest channel for bugs and feature requests.",
+    "githubTitle": "GitHub Issues",
+    "githubBody": "Report a bug or request a feature in the public repository.",
+    "githubCta": "Open an issue",
+    "emailTitle": "Email",
+    "emailBody": "For account or billing questions that cannot be public.",
+    "securityTitle": "Security reports",
+    "securityBody": "Do not open a public issue for vulnerabilities. Use GitHub’s private security advisory instead.",
+    "response": "We usually reply within two business days."
+  },
+  "security": {
+    "title": "Security",
+    "sub": "How DeepCode Studio protects your account and data.",
+    "accountTitle": "Accounts and keys",
+    "accountBody": "Passwords are hashed. API keys are stored hashed and shown once. Upstream provider keys are encrypted with AES-256-GCM.",
+    "transportTitle": "Transport and browser",
+    "transportBody": "HTTPS with HSTS, a strict Content Security Policy, frame-ancestors none and rate limits on public endpoints.",
+    "dataTitle": "Your data",
+    "dataBody": "We meter token counts but do not store prompt or response content by default. The privacy policy has the details.",
+    "reportTitle": "Report a vulnerability",
+    "reportBody": "Open a private security advisory on GitHub before disclosing publicly; we will acknowledge and work on a fix.",
+    "privacy": "Read the privacy policy"
   }
 }

@@ -73,6 +73,7 @@ jobs:
       APP_URL: http://localhost:3210
       BILLING_PROVIDER: mock
       ALLOW_MOCK_BILLING: "true"
+      MOCK_BILLING_WEBHOOK_SECRET: ci-mock-secret
       ADMIN_2FA_REQUIRED: "false"
     steps:
       - uses: actions/checkout@v4
@@ -92,6 +93,8 @@ jobs:
           nohup node node_modules/next/dist/bin/next start --port 3210 > ../../next.log 2>&1 &
           for i in $(seq 1 60); do curl -fsS http://localhost:3210/ar > /dev/null && exit 0; sleep 2; done
           cat ../../next.log; exit 1
+      - name: Lighthouse budgets
+        run: pnpm --filter @deepcode/web exec lhci autorun --config=.lighthouserc.ci.json
       - run: pnpm --filter @deepcode/web exec playwright test
       - if: failure()
         uses: actions/upload-artifact@v4
@@ -100,6 +103,7 @@ jobs:
           path: |
             apps/web/playwright-report
             apps/web/test-results
+            apps/web/.lighthouseci
             next.log
           retention-days: 7
 

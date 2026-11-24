@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 3210;
-const baseURL = `http://localhost:${PORT}`;
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
 /**
  * E2E + visual + a11y (W-09 … W-12) against the production server on the dev

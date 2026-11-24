@@ -126,6 +126,12 @@ export const auth = betterAuth({
     enabled: true,
     window: 60,
     max: 20,
+    customRules: {
+      // Public pages probe the session once per load to swap the CTA. That is a
+      // cheap read, not a credential attempt: normal browsing must not hit the
+      // 20/min login ceiling and log 429s in the browser console.
+      "/get-session": { window: 60, max: 300 },
+    },
   },
   socialProviders: {
     // OAuth providers are enabled only when credentials exist; none are needed

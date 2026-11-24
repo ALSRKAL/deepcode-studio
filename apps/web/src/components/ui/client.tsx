@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { buttonClass } from "./button";
 
@@ -31,33 +32,27 @@ export function SubmitButton({
 }
 
 export function CopyButton({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
   return (
     <button
       type="button"
-      className="inline-flex h-8 items-center rounded-sm border border-border px-3 text-[13px] text-fg-muted hover:text-fg hover:bg-surface-2 transition-colors duration-200 ease-out"
+      aria-label={label}
+      className="inline-flex h-11 shrink-0 items-center rounded-sm border border-border px-3 text-[13px] text-fg-muted transition-colors duration-200 ease-out hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(value);
-          const btn = document.getElementById(`copied-${hash(value)}`);
-          if (btn) {
-            btn.hidden = false;
-            setTimeout(() => (btn.hidden = true), 1500);
-          }
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
         } catch {
           // clipboard unavailable — the value stays selectable
         }
       }}
     >
-      <span id={`copied-${hash(value)}`} hidden className="text-success">
-        ✓{" "}
+      <span aria-live="polite" className="sr-only">
+        {copied ? "Copied" : ""}
       </span>
+      {copied ? <span aria-hidden="true" className="text-success">✓</span> : null}
       {label}
     </button>
   );
-}
-
-function hash(v: string): string {
-  let h = 0;
-  for (let i = 0; i < v.length; i++) h = (h * 31 + v.charCodeAt(i)) | 0;
-  return Math.abs(h).toString(36);
 }

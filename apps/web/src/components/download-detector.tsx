@@ -2,56 +2,74 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { detectOS, findBuild, isRecommended, type DetectedOS, type DownloadBuild } from "@/lib/download";
+
+type Build = DownloadBuild;
+type OS = DetectedOS;
+
+function sizeLabel(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
 
 /**
- * OS-detecting download block (docs/plan/03 §3.2). Detection is client-side;
- * macOS always shows both arch buttons (Apple Silicon first) since Safari cannot
- * report the architecture reliably.
+ * The download choices are in the initial HTML; client-side detection only marks
+ * the matching build as recommended. That keeps the primary action usable without
+ * JavaScript and avoids the hydration reflow of the old single-button detector.
  */
-type OS = "win" | "mac" | "linux" | "unknown";
-
-export function DownloadDetector({
-  builds,
-}: {
-  builds: Array<{ platform: string; arch: string; fileKind: string; version: string; url: string; sizeBytes: number }>;
-}) {
+export function DownloadDetector({ builds }: { builds: Build[] }) {
   const t = useTranslations("download");
   const [os, setOs] = useState<OS>("unknown");
 
   useEffect(() => {
-    const ua = navigator.userAgent.toLowerCase();
-    if (ua.includes("windows")) setOs("win");
-    else if (ua.includes("mac")) setOs("mac");
-    else if (ua.includes("linux")) setOs("linux");
+    setOs(detectOS(navigator.userAgent));
   }, []);
 
-  const primary = builds.filter((b) => {
-    if (os === "win") return b.platform === "win" && b.arch === "x64" && b.fileKind === "exe";
-    if (os === "mac") return b.platform === "mac" && b.fileKind === "dmg" && b.arch === "arm64";
-    if (os === "linux") return b.platform === "linux" && b.arch === "x64" && b.fileKind === "AppImage";
-    return false;
-  });
-  const primaryBuild = primary[0];
+  const wanted = [
+    { key: "win-x64-exe", platform: "win", arch: "x64", kind: "exe", label: t("windows"), detail: `${t("x64")} · .exe` },
+    { key: "mac-arm64-dmg", platform: "mac", arch: "arm64", kind: "dmg", label: t("macos"), detail: `${t("appleSilicon")} · .dmg` },
+    { key: "mac-x64-dmg", platform: "mac", arch: "x64", kind: "dmg", label: t("macos"), detail: `${t("intel")} · .dmg` },
+    { key: "linux-x64-appimage", platform: "linux", arch: "x64", kind: "AppImage", label: t("linux"), detail: `${t("x64")} · .AppImage` },
+    { key: "linux-arm64-appimage", platform: "linux", arch: "arm64", kind: "AppImage", label: t("linux"), detail: `${t("arm64")} · .AppImage` },
+  ]
+    .map((option) => ({ ...option, build: findBuild(builds, option.platform, option.arch, option.kind) }))
+    .filter((option): option is typeof option & { build: Build } => Boolean(option.build));
+
+  if (builds.length === 0) {
+    return <p className="text-[15px] text-fg-muted">{t("noReleases")}</p>;
+  }
 
   return (
-    <div className="grid gap-6">
-      <div className="rounded-lg border border-primary/40 bg-surface p-6">
-        <p className="text-fg-subtle text-[13px]">{t("detected")}</p>
-        {primaryBuild ? (
-          <div className="mt-2 flex flex-wrap items-center gap-3">
+    <div className="grid gap-4">
+      {os === "mobile" ? (
+        <p className="rounded-sm border border-border bg-surface-2 px-4 py-3 text-[13px] leading-6 text-fg-muted">{t("mobileNote")}</p>
+      ) : null}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {wanted.map((option) => {
+          const recommended = isRecommended(os, option.platform, option.arch);
+          return (
             <a
-              href={primaryBuild.url}
-              className="inline-flex h-11 items-center rounded-sm bg-primary px-5 text-[15px] text-primary-fg font-medium hover:bg-primary-hover"
+              key={option.key}
+              href={option.build.url}
+              className={`flex min-h-16 items-center justify-between gap-4 rounded-lg border px-5 py-4 transition-colors ${
+                recommended ? "border-primary bg-primary/5" : "border-border bg-surface hover:bg-surface-2"
+              }`}
             >
-              {os === "win" ? "Windows" : os === "mac" ? "macOS" : "Linux"} — {primaryBuild.fileKind} x64
+              <span>
+                <span className="flex flex-wrap items-center gap-2 text-[15px] font-medium text-fg">
+                  {option.label}
+                  <span className="text-[13px] font-normal text-fg-subtle">{option.detail}</span>
+                  {recommended ? (
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary-hover">{t("recommended")}</span>
+                  ) : null}
+                </span>
+                <span className="mt-1 block text-[12px] text-fg-subtle tabular" dir="ltr">
+                  v{option.build.version} · {sizeLabel(option.build.sizeBytes)}
+                </span>
+              </span>
+              <span aria-hidden="true" className="text-fg-muted">↓</span>
             </a>
-            <span className="text-[13px] text-fg-muted font-mono tabular" dir="ltr">
-              v{primaryBuild.version} · {(primaryBuild.sizeBytes / 1024 / 1024).toFixed(1)} MB
-            </span>
-          </div>
-        ) : (
-          <p className="mt-2 text-[14px] text-fg-muted">{os === "unknown" ? t("sub") : t("noReleases")}</p>
-        )}
+          );
+        })}
       </div>
     </div>
   );

@@ -1,13 +1,33 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { notFound } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { pageMetadata } from "@/lib/seo";
 
 /** Legal pages: terms, privacy and acceptable use (sections from i18n), plus licences. */
 const SLUGS = ["terms", "privacy", "acceptable-use", "licenses"] as const;
 type Slug = (typeof SLUGS)[number];
 
-export function generateStaticParams() {
-  return SLUGS.map((slug) => ({ slug }));
+
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string; slug: string }>;
+}) {
+  const { slug } = await params;
+  if (!SLUGS.includes(slug as Slug)) notFound();
+  const locale = (await params).locale === "en" ? "en" : "ar";
+  const legal = await getTranslations({ locale, namespace: "legal" });
+  const meta = await getTranslations({ locale, namespace: "meta.legal" });
+  const titleKey = slug === "acceptable-use" ? "acceptableUse" : slug;
+  return pageMetadata({
+    locale,
+    path: `/legal/${slug}`,
+    title: legal.has(titleKey) ? legal(titleKey) : slug,
+    description: meta("description"),
+  });
 }
 
 export default async function LegalPage({
@@ -18,21 +38,15 @@ export default async function LegalPage({
   const { slug, locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations("legal");
-  if (!SLUGS.includes(slug as Slug)) {
-    return (
-      <main className="mx-auto max-w-3xl px-4 py-16">
-        <p className="text-fg-muted">404</p>
-      </main>
-    );
-  }
+  if (!SLUGS.includes(slug as Slug)) notFound();
   const titleKey = slug === "acceptable-use" ? "acceptableUse" : slug;
   const title = t.has(titleKey) ? t(titleKey) : slug;
 
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto max-w-3xl px-4 py-16 grid gap-6">
-        <h1 className="text-scale-lg font-semibold">{title}</h1>
+      <main id="main" className="mx-auto max-w-3xl px-4 py-16 grid gap-6">
+        <h1 className="text-display-sm font-semibold">{title}</h1>
         {slug === "licenses" ? (
           <div className="rounded-lg border border-border bg-surface p-6 text-[14px] leading-7 text-fg-muted">
             <p>{t("licensesBody")}</p>

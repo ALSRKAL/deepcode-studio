@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -28,7 +29,10 @@ export interface AuthState {
     | "weak_password"
     | "rate_limited"
     | "invalid_code"
-    | "expired_challenge";
+    | "expired_challenge"
+    | "invalid_token"
+    | "password_mismatch"
+    | "consent_required";
 }
 
 /**
@@ -136,13 +140,24 @@ export async function googleSignInAction(formData: FormData): Promise<void> {
 export async function signUpAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const schema = CredentialsSchema.extend({
     name: z.string().trim().min(1).max(100),
+    confirmPassword: z.string().min(10).max(200),
+    acceptTerms: z.literal("on"),
   });
   const parsed = schema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
     password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+    acceptTerms: formData.get("acceptTerms"),
   });
-  if (!parsed.success) return { error: "invalid_input" };
+  if (!parsed.success) {
+    const fields = parsed.error.flatten().fieldErrors;
+    if (fields.acceptTerms) return { error: "consent_required" };
+    if (fields.password) return { error: "weak_password" };
+    if (fields.confirmPassword) return { error: "password_mismatch" };
+    return { error: "invalid_input" };
+  }
+  if (parsed.data.password !== parsed.data.confirmPassword) return { error: "password_mismatch" };
   const locale = z.enum(["ar", "en"]).catch("ar").parse(formData.get("locale"));
   const signupLimited = await authRateLimit("signup", parsed.data.email, 5);
   if (signupLimited) return signupLimited;
@@ -192,6 +207,56 @@ export async function requestPasswordResetAction(_prev: AuthState, formData: For
     // swallowed: the response is identical either way
   }
   redirect(await localized("/forgot-password?sent=1"));
+}
+
+/** Completes a password reset from the emailed token (better-auth resetPassword). */
+export async function resetPasswordAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  const schema = z
+    .object({
+      token: z.string().min(16).max(512),
+      password: z.string().min(10).max(200),
+      confirmPassword: z.string().min(10).max(200),
+    })
+    .refine((v) => v.password === v.confirmPassword, { path: ["confirmPassword"] });
+  const parsed = schema.safeParse({
+    token: formData.get("token"),
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.flatten().fieldErrors.confirmPassword ? "password_mismatch" : "invalid_input" };
+  }
+  const tokenHash = createHash("sha256").update(parsed.data.token).digest("hex");
+  const limited = await authRateLimit("reset-confirm", tokenHash, 10);
+  if (limited) return limited;
+  try {
+    await auth.api.resetPassword({
+      body: { newPassword: parsed.data.password, token: parsed.data.token },
+      headers: await headers(),
+    });
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    return { error: "invalid_token" };
+  }
+  redirect(await localized("/sign-in?reset=1"));
+}
+
+/** Resends the verification mail for an unverified address (enumeration-safe). */
+export async function resendVerificationAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  const email = z.string().trim().email().max(200).safeParse(formData.get("email"));
+  if (!email.success) return { error: "invalid_input" };
+  const limited = await authRateLimit("verify", email.data, 3);
+  if (limited) return limited;
+  try {
+    await auth.api.sendVerificationEmail({
+      body: { email: email.data, callbackURL: `/${await currentLocale()}/sign-in` },
+      headers: await headers(),
+    });
+  } catch (err) {
+    if (isRedirect(err)) throw err;
+    // Same response for unknown accounts: no enumeration.
+  }
+  redirect(await localized("/verify-email?sent=1"));
 }
 
 /** The desktop consent screen approval (docs/plan/03 §4.1 step 4). */
